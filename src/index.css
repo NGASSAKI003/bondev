@@ -343,3 +343,45 @@ html[data-theme="dark"] .theme-toggle{color:#a8b3cf}
 @media(min-width:1025px){.shell .phone[data-nav=open]{padding-left:260px}}
 @media(max-width:1024px){.shell .phone[data-nav=open] .nav{box-shadow:14px 0 44px #0007}}
 @media(prefers-reduced-motion:reduce){.shell .phone,.shell .nav,.shell .nav *{transition:none!important}}
+
+/* Connexion : fond uniforme, conteneur arrondi, bouton Google */
+.orb,.login-brand::before,.login-brand::after,.login::before,.login::after{display:none!important}
+.login,html[data-theme=dark] .login{background:#050816!important;border:0!important;box-shadow:none!important}
+html[data-theme=light] .login{background:#f7f9ff!important}
+@media(min-width:640px){.login{background:transparent!important}}
+.login-actions{display:flex;flex-direction:column;gap:12px;padding:22px 20px;border:1px solid #ffffff1a;border-radius:26px}
+html[data-theme=light] .login-actions{border-color:#18346b1f}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:56px;border-radius:16px;border:1px solid #d9deea;background:#fff;color:#1f2937;font:inherit;font-weight:600;font-size:16px;cursor:pointer;transition:transform .15s ease}
+.google-btn:active{transform:scale(.97)}
+/* Sélecteur de langue */
+.lang-toggle{display:inline-flex;padding:3px;gap:2px;border-radius:13px;border:1px solid #ffffff1a;background:#ffffff0f}
+.lang-toggle button{min-width:40px;height:34px;border:0;border-radius:10px;background:none;color:#a8b3cf;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s,color .2s}
+.lang-toggle button[aria-pressed=true]{background:linear-gradient(135deg,#1ea7ff,#7b3ff2);color:#fff}
+html[data-theme=light] .lang-toggle{border-color:#18346b1f;background:#fff}
+.login-theme{display:flex;gap:8px;align-items:center}
+.nav .lang-toggle{display:none}
+@media(min-width:640px){.shell .nav .lang-toggle{display:inline-flex;width:216px;flex:none;margin-top:8px;opacity:var(--open);transition:opacity .22s ease}.shell .nav .lang-toggle button{flex:1}}
+/* Hors-ligne et fermeture douce de la feuille « Ajouter » */
+.offline-bar{position:fixed;z-index:60;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);display:flex;gap:8px;align-items:center;padding:10px 16px;border-radius:999px;background:#1b2447;color:#fff;font-size:14px;box-shadow:0 10px 30px #0006;animation:fade-in .3s ease both}
+.sheet-backdrop.out{animation:fade-out .28s ease both!important}
+.sheet-backdrop.out .add-sheet{animation:sheet-down .28s cubic-bezier(.4,0,1,1) both!important}
+@keyframes fade-out{from{opacity:1}to{opacity:0}}
+@keyframes sheet-down{from{transform:none}to{transform:translateY(100%)}}
+
+.email-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:56px;border-radius:16px;border:1px solid #ffffff2e;background:#ffffff0f;color:inherit;font:inherit;font-weight:600;font-size:16px;cursor:pointer;transition:transform .15s ease,background .2s}
+.email-btn:active{transform:scale(.97)}
+.email-btn svg{width:22px;height:22px}
+html[data-theme=light] .email-btn{border-color:#18346b2e;background:#fff;color:#111936}
+.lang-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin-top:16px;border-radius:20px;font-weight:600}
+
+/* Correctifs : bouton burger caché sur mobile, « + » visible en thème clair, sélecteur de langue lisible */
+@media(max-width:639px){.nav>.nav-toggle,.nav .lang-toggle{display:none!important}}
+@media(min-width:640px){
+.shell .nav .add{color:inherit}
+.shell .nav .lang-toggle{background:#ffffff14;border-color:#ffffff33}
+.shell .nav .lang-toggle button{display:flex;flex-direction:row;align-items:center;justify-content:center;min-height:34px;height:34px;padding:0;color:#e8eeff;font-size:14px;font-weight:700;letter-spacing:.04em}
+.shell .nav .lang-toggle button[aria-pressed=true]{color:#fff}
+html[data-theme=light] .shell .nav .lang-toggle{background:#eef2fb;border-color:#18346b33}
+html[data-theme=light] .shell .nav .lang-toggle button{color:#334565}
+html[data-theme=light] .shell .nav .lang-toggle button[aria-pressed=true]{color:#fff}
+}

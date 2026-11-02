@@ -8,9 +8,14 @@ let lang: Lang = (() => {
 })()
 const subs = new Set<() => void>()
 
+export const getLang = (): Lang => lang
+
 // Dictionnaire français -> anglais. Pour ajouter une phrase : « texte français » : 'English text'.
 const EN: Record<string, string> = {
   'Ensemble, on va plus loin': 'Together, we go further', 'Trouve. Partage. Avance.': 'Find. Share. Grow.',
+  "Logo Bondev, deux personnes qui s'entraident": 'Bondev logo, two people helping each other',
+  'Passer au thème clair': 'Switch to light theme', 'Passer au thème sombre': 'Switch to dark theme',
+  'Clair': 'Light', 'Sombre': 'Dark',
   'Continuer avec GitHub': 'Continue with GitHub', 'Continuer avec Google': 'Continue with Google', 'Utiliser mon email': 'Use my email',
   'Accueil': 'Home', 'Entraide': 'Help', 'Ajouter': 'Add', 'Profil': 'Profile', 'Mon profil': 'My profile', 'États': 'States', 'Voir les états': 'See states',
   'Bonjour, Amadou': 'Hello, Amadou', 'Que veux-tu': 'What do you want to', 'construire ?': 'build?',
@@ -48,8 +53,57 @@ const EN: Record<string, string> = {
   'd’aide données': 'of help given', 'projets partagés': 'projects shared', 'Spécialités': 'Specialties', 'Mes points': 'My points', 'Historique des points': 'Points history',
   'Aide donnée à Fatou': 'Help given to Fatou', 'Aujourd’hui': 'Today', '12 juin': '12 June', '8 juin': '8 June', 'Il y a 2 jours': '2 days ago', 'Il y a 5 jours': '5 days ago', 'Il y a 1 semaine': '1 week ago',
   'Niveau 1': 'Level 1', 'Niveau 2': 'Level 2', 'Niveau 3': 'Level 3', 'Niveau 4': 'Level 4', 'points disponibles': 'points available', '34 gagnés au total': '34 earned in total', 'Projet partagé': 'Project shared',
-  'Hors-ligne': 'Offline', '· Tes demandes partiront dès que le réseau revient.': '· Your requests will be sent as soon as the network is back.',
+  'Hors-ligne': 'Offline', 'En ligne': 'Online', '· Tes demandes partiront dès que le réseau revient.': '· Your requests will be sent as soon as the network is back.',
   'Garder le menu ouvert': 'Keep menu open', 'Réduire le menu': 'Collapse menu', 'Navigation principale': 'Main navigation',
+
+  // Connexion, session et profil réel
+  'Chargement…': 'Loading…', 'Chargement de ta session…': 'Loading your session…',
+  'Vérifie ta boîte mail': 'Check your inbox', 'Envoie un lien de connexion à ton adresse email.': 'Send a sign-in link to your email address.',
+  'Ton adresse email': 'Your email address', 'Envoyer le lien': 'Send the link', 'Envoi…': 'Sending…',
+  'Le lien peut prendre une minute. Pense à vérifier tes spams.': 'The link may take a minute. Remember to check your spam folder.',
+  'Utiliser une autre adresse': 'Use another address', 'Se déconnecter': 'Sign out', 'Déconnexion…': 'Signing out…',
+  'Profil indisponible': 'Profile unavailable', 'Réessayer': 'Try again', 'Points indisponibles': 'Points unavailable',
+  'Chargement de l’historique…': 'Loading history…', 'Aucun mouvement pour le moment.': 'No movement yet.',
+  'Niveau maximal atteint': 'Highest level reached', 'gagnés au total': 'earned in total', 'Bonjour,': 'Hello,',
+  'La langue a changé sur cet appareil, mais n’a pas pu être enregistrée.': 'The language changed on this device, but could not be saved.',
+
+  // Niveaux renvoyés par la base
+  'Étincelle': 'Spark', 'Explorateur': 'Explorer', 'Bâtisseur': 'Builder', 'Maître': 'Master', 'Légende': 'Legend',
+
+  // Raisons du registre de points
+  'Bonus d’inscription': 'Sign-up bonus', 'Points mis de côté': 'Points set aside', 'Récompense reçue': 'Reward received',
+  'Remboursement': 'Refund', 'Publication d’un projet': 'Project published', 'Projet jugé utile': 'Project found useful',
+  'Question gratuite': 'Free question', 'Mouvement de points': 'Points movement',
+
+  // Messages d'erreur traduits par l'API
+  'Ta session a expiré. Reconnecte-toi.': 'Your session expired. Please sign in again.',
+  'Impossible de contacter le serveur. Vérifie ta connexion et réessaie.': 'Cannot reach the server. Check your connection and try again.',
+  'Trop de tentatives. Patiente un moment avant de réessayer.': 'Too many attempts. Wait a moment before trying again.',
+  'Cette information est déjà utilisée.': 'This information is already in use.',
+  'Tu n’as pas le droit de faire cette action.': 'You are not allowed to do this action.',
+  'Cette adresse email n’est pas valide.': 'This email address is not valid.',
+  'Ce lien de connexion n’est pas valide ou a expiré. Demande-en un nouveau.': 'This sign-in link is invalid or has expired. Request a new one.',
+  'Ce mode de connexion n’est pas activé. Choisis une autre méthode.': 'This sign-in method is not enabled. Choose another one.',
+  'La création de compte est désactivée pour le moment.': 'Account creation is disabled for now.',
+  'Un compte existe déjà avec cette adresse email.': 'An account already exists with this email address.',
+  'Confirme ton adresse email avant de te connecter.': 'Confirm your email address before signing in.',
+  'Une erreur est survenue. Réessaie dans un instant.': 'Something went wrong. Try again in a moment.',
+  'Ce pseudo est déjà pris. Essaie un autre.': 'This username is already taken. Try another one.',
+  'Le pseudo doit contenir entre 3 et 30 caractères (lettres, chiffres, _ ou -).': 'The username must be 3 to 30 characters long (letters, digits, _ or -).',
+  'Le nom affiché ne doit pas dépasser 80 caractères.': 'The display name must not exceed 80 characters.',
+  'La bio ne doit pas dépasser 500 caractères.': 'The bio must not exceed 500 characters.',
+  'Le lien doit commencer par https://.': 'The link must start with https://.',
+  'Le lien GitHub doit pointer vers github.com.': 'The GitHub link must point to github.com.',
+  'La langue choisie n’est pas valide.': 'The selected language is not valid.',
+  'Aucune modification à enregistrer.': 'There is nothing to save.',
+  'Ton profil est introuvable. Reconnecte-toi.': 'Your profile cannot be found. Please sign in again.',
+  'Tes statistiques ne sont pas encore disponibles. Reconnecte-toi.': 'Your stats are not available yet. Please sign in again.',
+  'Impossible de créer ton profil : ce pseudo est déjà utilisé. Réessaie dans un instant.': 'Could not create your profile: this username is already taken. Try again in a moment.',
+  'Impossible de te déconnecter pour le moment. Vérifie ta connexion et réessaie.': 'Could not sign you out right now. Check your connection and try again.',
+
+  // Configuration Supabase
+  "La connexion à Supabase n'est pas configurée. Crée un fichier .env.local à partir de .env.example, puis renseigne VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY avec les valeurs de ton projet Supabase.": 'The Supabase connection is not configured. Create a .env.local file from .env.example, then fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY with your Supabase project values.',
+  'Configuration requise': 'Configuration required', 'Une erreur inattendue est survenue.': 'An unexpected error occurred.', 'Recharge la page': 'Reload the page',
 }
 
 const txt = new WeakMap<Node, { fr: string; en: string }>()
@@ -92,11 +146,11 @@ export function setLang(l: Lang) {
 }
 export const useLang = () => useSyncExternalStore(f => { subs.add(f); return () => { subs.delete(f) } }, () => lang)
 
-export function LangToggle() {
+export function LangToggle({ onChange }: { onChange?: (l: Lang) => void } = {}) {
   const l = useLang()
   return (
     <div className="lang-toggle" role="group" aria-label="Langue">
-      {(['fr', 'en'] as const).map(x => <button key={x} aria-pressed={l === x} onClick={() => setLang(x)}>{x.toUpperCase()}</button>)}
+      {(['fr', 'en'] as const).map(x => <button key={x} aria-pressed={l === x} onClick={() => { setLang(x); onChange?.(x) }}>{x.toUpperCase()}</button>)}
     </div>
   )
 }

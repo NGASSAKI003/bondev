@@ -12,6 +12,7 @@
 -- puis dans profiles (ce qui déclenche le bonus d'inscription de +5 points).
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- SÉCURITÉ : ces comptes d'exemple ont un mot de passe aléatoire inutilisable (personne ne peut s'y connecter).
 -- Note : dans Supabase, auth.users est géré par GoTrue. En seed local,
 -- on insère directement. En production, les utilisateurs s'inscrivent
 -- via l'interface.
@@ -20,13 +21,13 @@ INSERT INTO auth.users (id, email, raw_user_meta_data, created_at, updated_at, e
 VALUES
   ('a0000000-0000-0000-0000-000000000001', 'amadou@example.com',
    '{"display_name":"Amadou Diallo"}'::jsonb, now(), now(), now(), 'authenticated',
-   '00000000-0000-0000-0000-000000000000', 'authenticated', crypt('password123', gen_salt('bf'))),
+   '00000000-0000-0000-0000-000000000000', 'authenticated', crypt(gen_random_uuid()::text, gen_salt('bf'))),
   ('a0000000-0000-0000-0000-000000000002', 'fatou@example.com',
    '{"display_name":"Fatou Mbaye"}'::jsonb, now(), now(), now(), 'authenticated',
-   '00000000-0000-0000-0000-000000000000', 'authenticated', crypt('password123', gen_salt('bf'))),
+   '00000000-0000-0000-0000-000000000000', 'authenticated', crypt(gen_random_uuid()::text, gen_salt('bf'))),
   ('a0000000-0000-0000-0000-000000000003', 'koffi@example.com',
    '{"display_name":"Koffi Asante"}'::jsonb, now(), now(), now(), 'authenticated',
-   '00000000-0000-0000-0000-000000000000', 'authenticated', crypt('password123', gen_salt('bf')))
+   '00000000-0000-0000-0000-000000000000', 'authenticated', crypt(gen_random_uuid()::text, gen_salt('bf')))
 ON CONFLICT (id) DO NOTHING;
 
 -- Création des identités auth (nécessaire pour Supabase)

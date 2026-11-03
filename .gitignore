@@ -2,7 +2,9 @@ node_modules/
 dist/
 build/
 .cache/
+# Secrets locaux : .env.local est ignoré, mais .env.example reste versionné.
 .env*
+!.env.example
 .vite/
 vite.config.*.timestamp-*
 *.tsbuildinfo

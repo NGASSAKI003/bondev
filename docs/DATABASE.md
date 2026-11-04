@@ -74,7 +74,8 @@ repo_url      → lien vers le dépôt Git
 license       → licence (MIT, Apache-2.0, GPL-3.0…)
 technologies  → liste : {"React", "Node.js", "Python"}
 tags          → étiquettes : {"Mobile Money", "hors-ligne", "USSD"}
-stars         → nombre de « ça m'a servi »
+stars         → nombre de « ça m'a servi » sur Bondev
+github_stars  → étoiles du dépôt GitHub (importées)
 last_activity → date de la dernière activité
 ```
 
@@ -421,6 +422,7 @@ erDiagram
         text[] technologies
         text[] tags
         int stars
+        int github_stars
     }
 
     project_uses {

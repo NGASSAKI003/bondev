@@ -7,7 +7,7 @@ function project(
   description: string,
   technologies: string[],
   tags: string[],
-  stars: number,
+  githubStars: number,
   lastActivity: string,
 ): SearchableProject {
   return {
@@ -16,7 +16,8 @@ function project(
     description,
     technologies,
     tags,
-    stars,
+    stars: 0,
+    github_stars: githubStars,
     last_activity: lastActivity,
   }
 }
@@ -114,6 +115,67 @@ const CATALOGUE: SearchableProject[] = [
   ),
 ]
 
+/**
+ * Petit catalogue fictif pour tester les recherches du catalogue de départ.
+ * Aucun appel réseau : les projets sont entièrement définis ici.
+ */
+const CATALOGUE_OPEN_SOURCE: SearchableProject[] = [
+  project(
+    'cht',
+    'Community Health Toolkit',
+    'Application de santé communautaire qui fonctionne hors-ligne, même avec une faible connexion.',
+    ['JavaScript', 'CouchDB'],
+    ['santé', 'hors-ligne', 'faible connexion'],
+    563,
+    '2026-11-04T19:53:40.000Z',
+  ),
+  project(
+    'openmrs',
+    'OpenMRS',
+    'Dossier médical open source pour les cliniques et les hôpitaux.',
+    ['Java', 'Spring'],
+    ['santé', 'hôpital'],
+    480,
+    '2026-10-20T10:00:00.000Z',
+  ),
+  project(
+    'africas-talking',
+    "Africa's Talking",
+    'SDK pour envoyer des SMS, créer des menus USSD et intégrer des paiements mobile.',
+    ['JavaScript', 'API'],
+    ['SMS', 'USSD', 'paiement'],
+    167,
+    '2026-10-09T10:00:00.000Z',
+  ),
+  project(
+    'kolibri',
+    'Kolibri',
+    "Plateforme d'apprentissage qui fonctionne hors-ligne, pensée pour les écoles sans internet fiable.",
+    ['Python', 'Django'],
+    ['éducation', 'hors-ligne', 'faible connexion'],
+    1168,
+    '2026-11-02T10:00:00.000Z',
+  ),
+  project(
+    'dexie',
+    'Dexie.js',
+    'Wrapper minimaliste pour IndexedDB, utile pour stocker des données hors-ligne dans le navigateur.',
+    ['JavaScript', 'IndexedDB'],
+    ['hors-ligne', 'base de données', 'navigateur'],
+    12000,
+    '2026-10-30T10:00:00.000Z',
+  ),
+  project(
+    'workbox',
+    'Workbox',
+    'Bibliothèque de service workers pour rendre une PWA rapide et disponible hors-ligne.',
+    ['JavaScript', 'Service Worker'],
+    ['hors-ligne', 'PWA', 'performance'],
+    11000,
+    '2026-10-31T10:00:00.000Z',
+  ),
+]
+
 describe('normalizeSearchText', () => {
   it('ignore les accents, la casse et la ponctuation', () => {
     expect(normalizeSearchText('  Éducation, HORS-LIGNE ! ')).toBe(
@@ -130,9 +192,20 @@ describe('searchProjects', () => {
       'Intégration Mobile Money',
     )
     expect(outcome.results[0]?.why).toContain('Mobile Money')
-    expect(outcome.results[0]?.why).toContain('Node.js')
+    expect(outcome.results[0]?.why).not.toContain('Node.js')
+    expect(outcome.results[0]?.why).not.toContain('TypeScript')
     expect(outcome.understood).toContain('Mobile Money')
     expect(outcome.understood).toContain('paiement')
+  })
+
+  it('ne cite une technologie que si la requête la nomme', () => {
+    const unnamed = searchProjects(CATALOGUE, 'stock')
+
+    expect(unnamed.results[0]?.why).not.toContain('React')
+
+    const named = searchProjects(CATALOGUE, 'stock React')
+
+    expect(named.results[0]?.why).toContain('React')
   })
 
   it('comprend « sans connexion » comme le concept hors-ligne', () => {
@@ -174,5 +247,79 @@ describe('searchProjects', () => {
     expect(outcome.results).toHaveLength(CATALOGUE.length)
     expect(outcome.results[0]?.project.id).toBe('stock')
     expect(outcome.understood).toBe('')
+  })
+})
+
+describe('catalogue de départ', () => {
+  it('trouve un outil de santé qui fonctionne hors-ligne', () => {
+    const outcome = searchProjects(
+      CATALOGUE_OPEN_SOURCE,
+      'application de santé hors-ligne',
+    )
+    const ids = outcome.results.map((result) => result.project.id)
+
+    expect(outcome.understood).toBe('santé · hors-ligne')
+    expect(outcome.results[0]?.project.id).toBe('cht')
+    expect(outcome.results[0]?.why).toContain('santé')
+    expect(outcome.results[0]?.why).toContain('hors-ligne')
+    expect(outcome.results[0]?.why).not.toContain('JavaScript')
+
+    expect(ids).toContain('openmrs')
+    expect(ids).toContain('dexie')
+    expect(ids).toContain('workbox')
+    // Les projets de santé passent avant les bibliothèques techniques qui ne
+    // partagent que la contrainte « hors-ligne ».
+    expect(ids.indexOf('cht')).toBeLessThan(ids.indexOf('dexie'))
+    expect(ids.indexOf('cht')).toBeLessThan(ids.indexOf('workbox'))
+    expect(ids.indexOf('openmrs')).toBeLessThan(ids.indexOf('dexie'))
+    expect(ids.indexOf('openmrs')).toBeLessThan(ids.indexOf('workbox'))
+  })
+
+  it("trouve Africa's Talking avec « sms ussd »", () => {
+    const outcome = searchProjects(CATALOGUE_OPEN_SOURCE, 'sms ussd')
+
+    expect(outcome.results[0]?.project.id).toBe('africas-talking')
+    expect(outcome.understood).toBe('SMS · USSD')
+    expect(outcome.results[0]?.why).toContain('SMS')
+    expect(outcome.results[0]?.why).toContain('USSD')
+    expect(outcome.results[0]?.why).not.toContain('JavaScript')
+    expect(outcome.concepts).toContain('sms')
+    expect(outcome.concepts).toContain('ussd')
+  })
+
+  it('trouve Kolibri avec « apprendre sans internet »', () => {
+    const outcome = searchProjects(
+      CATALOGUE_OPEN_SOURCE,
+      'apprendre sans internet',
+    )
+
+    expect(outcome.results[0]?.project.id).toBe('kolibri')
+    expect(outcome.understood).toBe('éducation · hors-ligne')
+    expect(outcome.results[0]?.why).toContain('apprentissage')
+    expect(outcome.results[0]?.why).toContain('hors-ligne')
+    expect(outcome.results[0]?.why).not.toContain('Python')
+  })
+
+  it('reconnaît les nouveaux concepts du catalogue', () => {
+    const cases = [
+      ['santé', 'health'],
+      ['microfinance', 'microfinance'],
+      ['collecte de données', 'data-collection'],
+      ['cartographie', 'mapping'],
+      ['humanitaire', 'humanitarian'],
+      ['état civil', 'civil-registry'],
+      ['langues africaines', 'african-languages'],
+      ['intelligence artificielle', 'ai'],
+      ['messagerie', 'messaging'],
+      ['PME', 'sme'],
+      ['mobile', 'mobile'],
+      ['faible connexion', 'offline'],
+    ] as const
+
+    for (const [query, concept] of cases) {
+      expect(searchProjects(CATALOGUE_OPEN_SOURCE, query).concepts).toContain(
+        concept,
+      )
+    }
   })
 })

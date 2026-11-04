@@ -21,6 +21,17 @@ export type SearchConceptId =
   | 'education'
   | 'agriculture'
   | 'currency'
+  | 'health'
+  | 'microfinance'
+  | 'data-collection'
+  | 'mapping'
+  | 'humanitarian'
+  | 'civil-registry'
+  | 'african-languages'
+  | 'ai'
+  | 'messaging'
+  | 'sme'
+  | 'mobile'
 
 export type SearchField = 'tags' | 'technologies' | 'title' | 'description'
 
@@ -167,6 +178,12 @@ export const SEARCH_CONCEPTS: readonly SearchConcept[] = [
       'course',
       'formation',
       'apprentissage',
+      'apprendre',
+      'learn',
+      'apprenant',
+      'élève',
+      'eleve',
+      'pupil',
       'ecole',
       'school',
       'etudiant',
@@ -209,6 +226,265 @@ export const SEARCH_CONCEPTS: readonly SearchConcept[] = [
     ],
     verb: { fr: 'gère les devises africaines', en: 'handles African currencies' },
   },
+  {
+    id: 'health',
+    label: { fr: 'santé', en: 'health' },
+    keywords: [
+      'santé',
+      'health',
+      'healthcare',
+      'soin',
+      'soins',
+      'hôpital',
+      'hopital',
+      'hospital',
+      'clinique',
+      'clinic',
+      'médecin',
+      'medecin',
+      'docteur',
+      'doctor',
+      'médical',
+      'medical',
+      'patient',
+      'patients',
+      'dispensaire',
+      'ehealth',
+      'e-santé',
+      'santé publique',
+      'public health',
+    ],
+    verb: { fr: 'sert la santé', en: 'supports health' },
+  },
+  {
+    id: 'microfinance',
+    label: { fr: 'microfinance', en: 'microfinance' },
+    keywords: [
+      'microfinance',
+      'micro finance',
+      'microcrédit',
+      'micro-crédit',
+      'crédit',
+      'credit',
+      'prêt',
+      'pret',
+      'loan',
+      'loans',
+      'épargne',
+      'epargne',
+      'savings',
+      'sacco',
+      'caisse',
+      'coopérative',
+      'cooperative',
+      'banque',
+      'bank',
+      'banking',
+      'inclusion financière',
+      'financial inclusion',
+    ],
+    verb: { fr: 'gère la microfinance', en: 'supports microfinance' },
+  },
+  {
+    id: 'data-collection',
+    label: { fr: 'collecte de données', en: 'data collection' },
+    keywords: [
+      'collecte de données',
+      'collecte',
+      'enquête',
+      'enquêtes',
+      'survey',
+      'surveys',
+      'formulaire',
+      'formulaires',
+      'form',
+      'forms',
+      'questionnaire',
+      'questionnaires',
+      'data collection',
+      'field data',
+      'collecte terrain',
+      'recensement',
+      'census',
+      'saisie',
+    ],
+    verb: { fr: 'collecte des données', en: 'collects data' },
+  },
+  {
+    id: 'mapping',
+    label: { fr: 'cartographie', en: 'mapping' },
+    keywords: [
+      'cartographie',
+      'carto',
+      'carte',
+      'cartes',
+      'map',
+      'maps',
+      'mapping',
+      'géolocalisation',
+      'geospatial',
+      'sig',
+      'gis',
+      'openstreetmap',
+      'osm',
+    ],
+    verb: { fr: 'affiche des cartes', en: 'provides maps' },
+  },
+  {
+    id: 'humanitarian',
+    label: { fr: 'humanitaire', en: 'humanitarian' },
+    keywords: [
+      'humanitaire',
+      'humanitarian',
+      'crise',
+      'crisis',
+      'urgence',
+      'emergency',
+      'catastrophe',
+      'disaster',
+      'réfugié',
+      'réfugiés',
+      'refugee',
+      'refugees',
+      'ong',
+      'ngo',
+      'aide humanitaire',
+      'humanitarian aid',
+    ],
+    verb: { fr: 'aide en contexte humanitaire', en: 'supports humanitarian work' },
+  },
+  {
+    id: 'civil-registry',
+    label: { fr: 'état civil', en: 'civil registry' },
+    keywords: [
+      'état civil',
+      'civil registry',
+      'civil registration',
+      'birth registration',
+      'naissance',
+      'naissances',
+      'birth',
+      'births',
+      'certificat',
+      'certificate',
+      'acte de naissance',
+      'crvs',
+      'identité',
+      'identity',
+      'identification',
+    ],
+    verb: { fr: 'enregistre l’état civil', en: 'registers civil records' },
+  },
+  {
+    id: 'african-languages',
+    label: { fr: 'langues africaines', en: 'African languages' },
+    keywords: [
+      'langues africaines',
+      'langue africaine',
+      'african languages',
+      'african language',
+      'swahili',
+      'yoruba',
+      'igbo',
+      'hausa',
+      'wolof',
+      'bambara',
+      'lingala',
+      'amharique',
+      'amharic',
+      'traduction',
+      'translation',
+      'translate',
+      'machine translation',
+      'traduction automatique',
+      'nlp',
+      'traitement du langage',
+    ],
+    verb: {
+      fr: 'prend en charge les langues africaines',
+      en: 'supports African languages',
+    },
+  },
+  {
+    id: 'ai',
+    label: { fr: 'IA', en: 'AI' },
+    keywords: [
+      'ia',
+      'intelligence artificielle',
+      'artificial intelligence',
+      'machine learning',
+      'apprentissage automatique',
+      'deep learning',
+      'apprentissage profond',
+      'ml',
+      'ai',
+      'llm',
+      'modèle',
+      'model',
+      'neural',
+      'réseau de neurones',
+    ],
+    verb: { fr: 'utilise l’IA', en: 'uses AI' },
+  },
+  {
+    id: 'messaging',
+    label: { fr: 'messagerie', en: 'messaging' },
+    keywords: [
+      'messagerie',
+      'messaging',
+      'message',
+      'messages',
+      'chat',
+      'whatsapp',
+      'telegram',
+      'bot',
+      'chatbot',
+      'conversation',
+      'conversationnel',
+      'conversational',
+      'texto',
+    ],
+    verb: { fr: 'gère la messagerie', en: 'handles messaging' },
+  },
+  {
+    id: 'sme',
+    label: { fr: 'PME', en: 'SMEs' },
+    keywords: [
+      'pme',
+      'petite entreprise',
+      'petites entreprises',
+      'small business',
+      'small businesses',
+      'sme',
+      'smes',
+      'entreprise',
+      'entreprises',
+      'business',
+      'artisan',
+      'artisans',
+    ],
+    verb: { fr: 'cible les PME', en: 'targets SMEs' },
+  },
+  {
+    id: 'mobile',
+    label: { fr: 'mobile', en: 'mobile' },
+    keywords: [
+      'mobile',
+      'mobiles',
+      'téléphone',
+      'smartphone',
+      'smartphones',
+      'android',
+      'ios',
+      'application mobile',
+      'applications mobiles',
+      'gsm',
+      'cellular',
+      'feature phone',
+      'téléphone basique',
+    ],
+    verb: { fr: 'cible le mobile', en: 'targets mobile' },
+  },
 ]
 
 export type SearchableProject = {
@@ -217,7 +493,10 @@ export type SearchableProject = {
   description: string
   technologies: string[]
   tags: string[]
+  /** Nombre de « Ça m’a servi » reçus sur Bondev. */
   stars: number
+  /** Étoiles GitHub, quand le projet vient du catalogue importé. */
+  github_stars?: number
   last_activity: string
 }
 
@@ -266,6 +545,29 @@ const TOKEN_FIELD_SCORE: Record<SearchField, number> = {
   title: 3,
   description: 1,
 }
+
+/**
+ * Concepts de domaine (santé, éducation, agriculture…). Quand une requête en
+ * contient un, les projets qui y répondent passent avant ceux qui ne partagent
+ * qu'une contrainte technique comme « hors-ligne » ou « API ».
+ */
+const DOMAIN_CONCEPTS = new Set<SearchConceptId>([
+  'mobile-money',
+  'stock',
+  'accounting',
+  'payment',
+  'education',
+  'agriculture',
+  'currency',
+  'health',
+  'microfinance',
+  'data-collection',
+  'mapping',
+  'humanitarian',
+  'civil-registry',
+  'african-languages',
+  'sme',
+])
 
 /**
  * Mots trop généraux pour être utiles seuls. Les concepts du dictionnaire
@@ -393,9 +695,25 @@ function fieldMatches(normalisedField: string, term: string): boolean {
 function findConcepts(query: string): SearchConcept[] {
   const normalised = normalizeSearchText(query)
   if (!normalised) return []
-  return SEARCH_CONCEPTS.filter((concept) =>
-    concept.keywords.some((keyword) => fieldMatches(normalised, keyword)),
-  )
+
+  const matches: { concept: SearchConcept; position: number }[] = []
+  for (const concept of SEARCH_CONCEPTS) {
+    let position = Number.POSITIVE_INFINITY
+    for (const keyword of concept.keywords) {
+      if (!fieldMatches(normalised, keyword)) continue
+      const index = normalised.indexOf(normalizeSearchText(keyword))
+      if (index >= 0 && index < position) position = index
+    }
+    if (position !== Number.POSITIVE_INFINITY) {
+      matches.push({ concept, position })
+    }
+  }
+
+  // L'ordre de la requête prime sur l'ordre du dictionnaire : « santé
+  // hors-ligne » s'affiche « santé · hors-ligne », pas l'inverse.
+  return matches
+    .sort((a, b) => a.position - b.position)
+    .map((match) => match.concept)
 }
 
 function queryTokens(query: string): string[] {
@@ -431,6 +749,8 @@ function conceptKeywordWords(concepts: SearchConcept[]): Set<string> {
 type Scored<T extends SearchableProject> = {
   result: ProjectSearchResult<T>
   concepts: SearchConcept[]
+  /** Nombre de concepts de domaine trouvés dans le projet. */
+  domainMatches: number
 }
 
 function scoreProject<T extends SearchableProject>(
@@ -485,24 +805,36 @@ function scoreProject<T extends SearchableProject>(
       whyEn: buildWhy(project, matchedConcepts, tokens, fields, 'en'),
     },
     concepts: matchedConcepts,
+    domainMatches: matchedConcepts.filter((concept) =>
+      DOMAIN_CONCEPTS.has(concept.id),
+    ).length,
   }
 }
 
-function addTechnology(
+/**
+ * Ajoute une technologie uniquement quand la requête la nomme. Pour les autres
+ * correspondances, les concepts et les étiquettes suffisent : on n'ajoute
+ * jamais « s'appuie sur TypeScript » sans que l'utilisateur ait demandé TypeScript.
+ */
+function addNamedTechnologies(
   sentence: string,
   project: SearchableProject,
-  concepts: SearchConcept[],
+  tokens: string[],
   lang: 'fr' | 'en',
 ): string {
-  const technology = project.technologies[0]
-  if (!technology) return sentence
-  const alreadyMentioned = [...concepts.map((c) => c.verb[lang]), sentence].some(
-    (value) => normalizeSearchText(value).includes(normalizeSearchText(technology)),
-  )
-  if (alreadyMentioned) return sentence
-  const startsWithWorks = concepts.some((c) => c.verb[lang].startsWith('fonctionne'))
-  if (lang === 'en') return `${sentence} and works with ${technology}`
-  return `${sentence} et ${startsWithWorks ? 's’appuie sur' : 'fonctionne avec'} ${technology}`
+  const normalisedSentence = normalizeSearchText(sentence)
+  const named = project.technologies
+    .filter((technology) => {
+      const normalised = normalizeSearchText(technology)
+      if (!normalised || normalisedSentence.includes(normalised)) return false
+      return tokens.some((token) => fieldMatches(normalised, token))
+    })
+    .slice(0, 2)
+  if (named.length === 0) return sentence
+  const list = named.join(lang === 'en' ? ' and ' : ' et ')
+  return lang === 'en'
+    ? `${sentence} and uses ${list}`
+    : `${sentence} et s’appuie sur ${list}`
 }
 
 function buildWhy(
@@ -512,20 +844,23 @@ function buildWhy(
   fields: Record<SearchField, string>,
   lang: 'fr' | 'en',
 ): string {
-  // « paiement » est trop général quand Mobile Money est déjà détecté.
-  const visibleConcepts = concepts.filter(
-    (concept) =>
-      !(
-        concept.id === 'payment' &&
-        concepts.some((other) => other.id === 'mobile-money')
-      ),
-  )
+  // « paiement » et « mobile » sont trop généraux quand Mobile Money est déjà détecté.
+  const visibleConcepts = concepts.filter((concept) => {
+    if (concept.id === 'payment' && concepts.some((other) => other.id === 'mobile-money')) {
+      return false
+    }
+    if (concept.id === 'mobile' && concepts.some((other) => other.id === 'mobile-money')) {
+      return false
+    }
+    return true
+  })
 
   if (visibleConcepts.length > 0) {
     const verbs = visibleConcepts.map((concept) => concept.verb[lang])
     const joiner = lang === 'en' ? ' and ' : ' et '
     const subject = lang === 'en' ? 'It' : 'Il'
-    return `${addTechnology(`${subject} ${verbs.join(joiner)}`, project, visibleConcepts, lang)}.`
+    const base = `${subject} ${verbs.join(joiner)}`
+    return `${addNamedTechnologies(base, project, tokens, lang)}.`
   }
 
   const matchedTokens = tokens.filter((token) =>
@@ -537,12 +872,7 @@ function buildWhy(
     .join(lang === 'en' ? ' and ' : ' et ')
 
   if (!quoted) {
-    return addTechnology(
-      lang === 'en' ? 'It matches your search' : 'Il correspond à ta recherche',
-      project,
-      [],
-      lang,
-    ) + '.'
+    return lang === 'en' ? 'It matches your search.' : 'Il correspond à ta recherche.'
   }
 
   const field = FIELD_ORDER.find((name) =>
@@ -569,7 +899,7 @@ function buildWhy(
     lang === 'en'
       ? `It matches ${quoted} in ${fieldLabel}`
       : `Il correspond à ${quoted} dans ${fieldLabel}`
-  return `${addTechnology(base, project, visibleConcepts, lang)}.`
+  return `${addNamedTechnologies(base, project, tokens, lang)}.`
 }
 
 function understoodPhrase(
@@ -579,18 +909,13 @@ function understoodPhrase(
 ): string {
   if (concepts.length > 0) {
     const labels = concepts.map((concept) => concept.label[lang])
-    return lang === 'en'
-      ? `you are looking for: ${labels.join(' · ')}.`
-      : `tu cherches une solution pour : ${labels.join(' · ')}.`
+    return labels.join(' · ')
   }
   if (tokens.length > 0) {
-    const quoted = tokens
+    return tokens
       .slice(0, 5)
       .map((token) => `« ${token} »`)
       .join(' · ')
-    return lang === 'en'
-      ? `you are looking for: ${quoted}.`
-      : `tu cherches : ${quoted}.`
   }
   return ''
 }
@@ -600,7 +925,10 @@ function understoodPhrase(
  *
  * - une requête vide renvoie tout le catalogue, du plus récent au plus ancien ;
  * - les tags pèsent plus que les technologies, le titre et la description ;
- * - les résultats sont triés par score, puis par nombre d’utiles et fraîcheur.
+ * - les concepts de domaine (santé, éducation…) passent avant les simples
+ *   contraintes techniques (hors-ligne, API…) ;
+ * - à pertinence égale, les étoiles GitHub puis les « Ça m’a servi » et la
+ *   fraîcheur départagent les résultats.
  */
 export function searchProjects<T extends SearchableProject>(
   projects: readonly T[],
@@ -643,8 +971,16 @@ export function searchProjects<T extends SearchableProject>(
   }
 
   scored.sort((a, b) => {
+    if (b.domainMatches !== a.domainMatches) {
+      return b.domainMatches - a.domainMatches
+    }
     if (b.result.score !== a.result.score) {
       return b.result.score - a.result.score
+    }
+    const aGithub = a.result.project.github_stars ?? 0
+    const bGithub = b.result.project.github_stars ?? 0
+    if (bGithub !== aGithub) {
+      return bGithub - aGithub
     }
     if (b.result.project.stars !== a.result.project.stars) {
       return b.result.project.stars - a.result.project.stars

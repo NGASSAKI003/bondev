@@ -1,0 +1,281 @@
+[
+  {
+    "repo": "https://github.com/ushahidi/platform",
+    "title": "Ushahidi",
+    "summary_fr": "Plateforme née au Kenya pour collecter des signalements par SMS, web ou email et les afficher sur une carte. Utilisée pour la gestion de crise et l'observation d'élections.",
+    "tags": [
+      "collecte de données",
+      "cartographie",
+      "SMS",
+      "humanitaire"
+    ]
+  },
+  {
+    "repo": "https://github.com/kobotoolbox/kpi",
+    "title": "KoBoToolbox",
+    "summary_fr": "Outil de collecte de données sur le terrain : formulaires, enquêtes et travail hors-ligne sur mobile. Très utilisé par les ONG et les organisations humanitaires.",
+    "tags": [
+      "collecte de données",
+      "hors-ligne",
+      "humanitaire"
+    ]
+  },
+  {
+    "repo": "https://github.com/getodk/collect",
+    "title": "ODK Collect",
+    "summary_fr": "Application Android pour remplir des formulaires sans connexion et envoyer les réponses plus tard, quand le réseau revient.",
+    "tags": [
+      "hors-ligne",
+      "collecte de données",
+      "mobile",
+      "faible connexion"
+    ]
+  },
+  {
+    "repo": "https://github.com/getodk/central",
+    "title": "ODK Central",
+    "summary_fr": "Serveur qui reçoit, gère et exporte les réponses aux formulaires ODK.",
+    "tags": [
+      "collecte de données",
+      "API"
+    ]
+  },
+  {
+    "repo": "https://github.com/dhis2/dhis2-core",
+    "title": "DHIS2",
+    "summary_fr": "Système d'information sanitaire utilisé par de nombreux pays africains pour suivre et analyser les données de santé.",
+    "tags": [
+      "santé",
+      "collecte de données",
+      "API"
+    ]
+  },
+  {
+    "repo": "https://github.com/openmrs/openmrs-core",
+    "title": "OpenMRS",
+    "summary_fr": "Dossiers médicaux électroniques open source, pensés pour des contextes aux ressources limitées.",
+    "tags": [
+      "santé"
+    ]
+  },
+  {
+    "repo": "https://github.com/medic/cht-core",
+    "title": "Community Health Toolkit",
+    "summary_fr": "Outils pour les agents de santé communautaires, conçus pour fonctionner même hors-ligne.",
+    "tags": [
+      "santé",
+      "hors-ligne",
+      "faible connexion"
+    ]
+  },
+  {
+    "repo": "https://github.com/dimagi/commcare-hq",
+    "title": "CommCare HQ",
+    "summary_fr": "Plateforme pour créer des applications mobiles de suivi de terrain qui fonctionnent hors-ligne.",
+    "tags": [
+      "hors-ligne",
+      "collecte de données",
+      "santé"
+    ]
+  },
+  {
+    "repo": "https://github.com/apache/fineract",
+    "title": "Apache Fineract",
+    "summary_fr": "Cœur bancaire open source pour la microfinance et l'inclusion financière : clients, prêts, épargne.",
+    "tags": [
+      "microfinance",
+      "fintech",
+      "API"
+    ]
+  },
+  {
+    "repo": "https://github.com/openMF/community-app",
+    "title": "Mifos (application web)",
+    "summary_fr": "Interface web pour gérer clients, prêts et épargne de microfinance, construite sur Apache Fineract.",
+    "tags": [
+      "microfinance",
+      "fintech"
+    ]
+  },
+  {
+    "repo": "https://github.com/openMF/android-client",
+    "title": "Mifos (application Android)",
+    "summary_fr": "Application mobile pour les agents de terrain de microfinance, reliée à Apache Fineract.",
+    "tags": [
+      "microfinance",
+      "fintech",
+      "mobile"
+    ]
+  },
+  {
+    "repo": "https://github.com/mojaloop/mojaloop",
+    "title": "Mojaloop",
+    "summary_fr": "Logiciel d'interopérabilité pour relier les systèmes de paiement mobile, les banques et les opérateurs.",
+    "tags": [
+      "Mobile Money",
+      "paiement",
+      "fintech",
+      "API"
+    ]
+  },
+  {
+    "repo": "https://github.com/Flutterwave/Flutterwave-node-v3",
+    "title": "Flutterwave pour Node.js",
+    "summary_fr": "Bibliothèque pour accepter des paiements (cartes, mobile money, virements) dans plusieurs pays africains.",
+    "tags": [
+      "paiement",
+      "Mobile Money",
+      "API"
+    ]
+  },
+  {
+    "repo": "https://github.com/AfricasTalkingLtd/africastalking-node.js",
+    "title": "Africa's Talking (Node.js)",
+    "summary_fr": "SDK pour envoyer des SMS, gérer des menus USSD, passer des appels et recevoir des paiements via Africa's Talking.",
+    "tags": [
+      "SMS",
+      "USSD",
+      "paiement",
+      "API"
+    ]
+  },
+  {
+    "repo": "https://github.com/AfricasTalkingLtd/africastalking-python",
+    "title": "Africa's Talking (Python)",
+    "summary_fr": "Le même SDK pour Python : SMS, USSD, voix et paiements via Africa's Talking.",
+    "tags": [
+      "SMS",
+      "USSD",
+      "paiement",
+      "API"
+    ]
+  },
+  {
+    "repo": "https://github.com/rapidpro/rapidpro",
+    "title": "RapidPro",
+    "summary_fr": "Plateforme pour construire des conversations par SMS et messageries, sans écrire de code.",
+    "tags": [
+      "SMS",
+      "messagerie",
+      "humanitaire"
+    ]
+  },
+  {
+    "repo": "https://github.com/rapidsms/rapidsms",
+    "title": "RapidSMS",
+    "summary_fr": "Framework Python (Django) pour créer des services par SMS.",
+    "tags": [
+      "SMS",
+      "API"
+    ]
+  },
+  {
+    "repo": "https://github.com/learningequality/kolibri",
+    "title": "Kolibri",
+    "summary_fr": "Plateforme d'apprentissage qui fonctionne hors-ligne, pensée pour les écoles sans internet fiable.",
+    "tags": [
+      "éducation",
+      "hors-ligne",
+      "faible connexion"
+    ]
+  },
+  {
+    "repo": "https://github.com/kiwix/kiwix-android",
+    "title": "Kiwix pour Android",
+    "summary_fr": "Lire Wikipédia et d'autres contenus sans connexion, après les avoir téléchargés.",
+    "tags": [
+      "hors-ligne",
+      "éducation",
+      "mobile"
+    ]
+  },
+  {
+    "repo": "https://github.com/openedx/edx-platform",
+    "title": "Open edX",
+    "summary_fr": "Plateforme de cours en ligne utilisée par des universités et organismes du monde entier.",
+    "tags": [
+      "éducation"
+    ]
+  },
+  {
+    "repo": "https://github.com/moodle/moodle",
+    "title": "Moodle",
+    "summary_fr": "Plateforme d'apprentissage en ligne très répandue dans les écoles et les universités.",
+    "tags": [
+      "éducation"
+    ]
+  },
+  {
+    "repo": "https://github.com/masakhane-io/masakhane-mt",
+    "title": "Masakhane MT",
+    "summary_fr": "Traduction automatique pour les langues africaines, issue d'une communauté de chercheurs du continent.",
+    "tags": [
+      "langues africaines",
+      "IA"
+    ]
+  },
+  {
+    "repo": "https://github.com/common-voice/common-voice",
+    "title": "Common Voice",
+    "summary_fr": "Collecte ouverte de voix pour la reconnaissance vocale, y compris pour des langues africaines.",
+    "tags": [
+      "langues africaines",
+      "IA"
+    ]
+  },
+  {
+    "repo": "https://github.com/pouchdb/pouchdb",
+    "title": "PouchDB",
+    "summary_fr": "Base de données dans le navigateur qui se synchronise quand la connexion revient : idéale pour le hors-ligne.",
+    "tags": [
+      "hors-ligne",
+      "faible connexion"
+    ]
+  },
+  {
+    "repo": "https://github.com/dexie/Dexie.js",
+    "title": "Dexie.js",
+    "summary_fr": "Simplifie l'utilisation d'IndexedDB pour stocker des données dans le navigateur, même sans connexion.",
+    "tags": [
+      "hors-ligne",
+      "PWA"
+    ]
+  },
+  {
+    "repo": "https://github.com/GoogleChrome/workbox",
+    "title": "Workbox",
+    "summary_fr": "Outils pour mettre un site en cache et le rendre utilisable hors-ligne (PWA).",
+    "tags": [
+      "PWA",
+      "hors-ligne",
+      "faible connexion"
+    ]
+  },
+  {
+    "repo": "https://github.com/farmOS/farmOS",
+    "title": "farmOS",
+    "summary_fr": "Gestion d'exploitation agricole : parcelles, cultures, élevage et suivi des activités.",
+    "tags": [
+      "agriculture"
+    ]
+  },
+  {
+    "repo": "https://github.com/frappe/erpnext",
+    "title": "ERPNext",
+    "summary_fr": "Logiciel de gestion complet (stocks, ventes, comptabilité, facturation) pour les petites et moyennes entreprises.",
+    "tags": [
+      "PME",
+      "comptabilité",
+      "stock"
+    ]
+  },
+  {
+    "repo": "https://github.com/opencrvs/opencrvs-core",
+    "title": "OpenCRVS",
+    "summary_fr": "Système d'enregistrement des naissances, mariages et décès (état civil) open source.",
+    "tags": [
+      "état civil",
+      "API"
+    ]
+  }
+]

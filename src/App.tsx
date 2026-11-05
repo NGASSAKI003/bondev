@@ -13,6 +13,7 @@ import {
   addAnswer,
   deleteAnswer,
   getMyLedger,
+  getProgress,
   getQuestion,
   isFreeQuestionAvailable,
   listProjects,
@@ -28,6 +29,7 @@ import {
   withdrawQuestion,
   type Answer,
   type LedgerEntry,
+  type ProgressResult,
   type Project,
   type PublishedProject,
   type Question,
@@ -45,6 +47,21 @@ import {
   tierLabel,
   type HelpTier,
 } from './lib/help'
+import {
+  BADGE_THRESHOLDS,
+  CHALLENGE_TARGET,
+  LEVELS,
+  levelFor,
+  type BadgeFamily,
+  type BadgeTier,
+  type CommunityBadgeId,
+  type CommunityBadgeProgress,
+  type LevelDefinition,
+  type ProgressSummary,
+  type QuestMissionId,
+  type SpecialtyProgress,
+  type TierBadgeProgress,
+} from './lib/progress'
 import { normalizeSearchText, searchProjects } from './lib/search'
 
 type Screen =
@@ -57,36 +74,261 @@ type Screen =
   | 'question'
   | 'add'
   | 'profile'
+  | 'how'
   | 'states'
 
-type Level = { min: number; name: string; en: string }
-const LEVELS: Level[] = [
-  { min: 0, name: 'Étincelle', en: 'Spark' },
-  { min: 10, name: 'Explorateur', en: 'Explorer' },
-  { min: 30, name: 'Bâtisseur', en: 'Builder' },
-  { min: 70, name: 'Mentor', en: 'Mentor' },
-  { min: 150, name: 'Maître', en: 'Master' },
-  { min: 300, name: 'Légende', en: 'Legend' },
-]
+const DATA_SAVER_KEY = 'bondev-data-saver'
+const TUTORIAL_KEY_PREFIX = 'bondev-tutorial'
+const SEEN_KEY_PREFIX = 'bondev-progress-seen'
+const PROGRESS_EVENT = 'bondev:progress-changed'
 
-function levelInfo(totalEarned: number) {
-  let index = 0
-  for (let i = 0; i < LEVELS.length; i += 1) {
-    if (totalEarned >= LEVELS[i].min) index = i
+type ProgressEventDetail = { celebration?: 'validated' }
+
+/** Prévient l'application qu'une action vient de changer la progression. */
+function notifyProgressChanged(detail?: ProgressEventDetail): void {
+  window.dispatchEvent(new CustomEvent(PROGRESS_EVENT, { detail }))
+}
+
+type BadgeFamilyMeta = {
+  label: { fr: string; en: string }
+  singular: { fr: string; en: string }
+  plural: { fr: string; en: string }
+  icon: string
+}
+
+const BADGE_FAMILY_META: Record<BadgeFamily, BadgeFamilyMeta> = {
+  help: {
+    label: { fr: 'Entraide', en: 'Helping' },
+    singular: { fr: 'réponse validée', en: 'validated answer' },
+    plural: { fr: 'réponses validées', en: 'validated answers' },
+    icon: 'handshake',
+  },
+  share: {
+    label: { fr: 'Partage', en: 'Sharing' },
+    singular: { fr: 'projet partagé', en: 'shared project' },
+    plural: { fr: 'projets partagés', en: 'shared projects' },
+    icon: 'code',
+  },
+  useful: {
+    label: { fr: 'Utilité', en: 'Usefulness' },
+    singular: { fr: '« Ça m’a servi » reçu', en: '“This helped me” received' },
+    plural: { fr: '« Ça m’a servi » reçus', en: '“This helped me” received' },
+    icon: 'star',
+  },
+  streak: {
+    label: { fr: 'Série', en: 'Streak' },
+    singular: { fr: 'semaine', en: 'week' },
+    plural: { fr: 'semaines', en: 'weeks' },
+    icon: 'flame',
+  },
+}
+
+const TIER_LABELS: Record<BadgeTier, { fr: string; en: string }> = {
+  bronze: { fr: 'Bronze', en: 'Bronze' },
+  silver: { fr: 'Argent', en: 'Silver' },
+  gold: { fr: 'Or', en: 'Gold' },
+}
+
+const COMMUNITY_META: Record<
+  CommunityBadgeId,
+  { title: { fr: string; en: string }; description: { fr: string; en: string }; icon: string }
+> = {
+  first_answer: {
+    title: { fr: 'Première réponse', en: 'First answer' },
+    description: {
+      fr: 'Tu as publié ta première réponse.',
+      en: 'You posted your first answer.',
+    },
+    icon: 'trophy',
+  },
+  new_voice: {
+    title: { fr: 'Nouvelle voix', en: 'New voice' },
+    description: {
+      fr: 'Tu as répondu à une question « débutant bienvenu ».',
+      en: 'You answered a “beginners welcome” question.',
+    },
+    icon: 'help',
+  },
+  kind: {
+    title: { fr: 'Bienveillant', en: 'Kind' },
+    description: {
+      fr: '3 réponses à des questions « débutant bienvenu ».',
+      en: '3 answers to “beginners welcome” questions.',
+    },
+    icon: 'handshake',
+  },
+}
+
+const QUEST_META: Record<
+  QuestMissionId,
+  { label: { fr: string; en: string }; icon: string }
+> = {
+  answer_beginner: {
+    label: {
+      fr: 'Répondre à une question débutant',
+      en: 'Answer a beginner question',
+    },
+    icon: 'help',
+  },
+  publish_project: {
+    label: { fr: 'Publier un projet', en: 'Publish a project' },
+    icon: 'code',
+  },
+  mark_useful: {
+    label: {
+      fr: 'Dire « Ça m’a servi »',
+      en: 'Say “This helped me”',
+    },
+    icon: 'star',
+  },
+}
+
+function familyLabel(family: BadgeFamily, lang: Lang): string {
+  return BADGE_FAMILY_META[family].label[lang]
+}
+
+function tierName(tier: BadgeTier, lang: Lang): string {
+  return TIER_LABELS[tier][lang]
+}
+
+function unitFor(
+  family: BadgeFamily,
+  count: number,
+  lang: Lang,
+): string {
+  const meta = BADGE_FAMILY_META[family]
+  return count === 1 ? meta.singular[lang] : meta.plural[lang]
+}
+
+function questLabel(id: QuestMissionId, lang: Lang): string {
+  return QUEST_META[id].label[lang]
+}
+
+type Celebration =
+  | { key: string; kind: 'level'; level: LevelDefinition }
+  | { key: string; kind: 'badge'; family: BadgeFamily; tier: BadgeTier }
+  | {
+      key: string
+      kind: 'specialty'
+      technology: string
+      tier: BadgeTier
+    }
+  | { key: string; kind: 'community'; id: CommunityBadgeId }
+  | { key: string; kind: 'quest' }
+  | { key: string; kind: 'challenge' }
+  | { key: string; kind: 'validated' }
+
+function milestonesFor(progress: ProgressSummary): Celebration[] {
+  const items: Celebration[] = [
+    {
+      key: `level:${progress.level.current.min}`,
+      kind: 'level',
+      level: progress.level.current,
+    },
+  ]
+
+  const families: BadgeFamily[] = ['help', 'share', 'useful', 'streak']
+  for (const family of families) {
+    const badge = progress.badges[family]
+    if (badge.tier) {
+      items.push({
+        key: `badge:${family}:${badge.tier}`,
+        kind: 'badge',
+        family,
+        tier: badge.tier,
+      })
+    }
   }
-  const current = LEVELS[index]
-  const next = LEVELS[index + 1] ?? null
-  const percent = next
-    ? Math.min(
-        100,
-        Math.max(0, ((totalEarned - current.min) / (next.min - current.min)) * 100),
-      )
-    : 100
-  return {
-    current,
-    next,
-    percent,
-    remaining: next ? Math.max(0, next.min - totalEarned) : 0,
+
+  for (const specialty of progress.badges.specialties) {
+    if (!specialty.tier) continue
+    items.push({
+      key: `specialty:${specialty.technology.toLocaleLowerCase('fr')}:${specialty.tier}`,
+      kind: 'specialty',
+      technology: specialty.technology,
+      tier: specialty.tier,
+    })
+  }
+
+  for (const badge of progress.badges.community) {
+    if (badge.unlocked) {
+      items.push({
+        key: `community:${badge.id}`,
+        kind: 'community',
+        id: badge.id,
+      })
+    }
+  }
+
+  if (progress.quest.allDone) {
+    items.push({ key: `quest:${progress.week}`, kind: 'quest' })
+  }
+  if (progress.challenge.badgeUnlocked) {
+    items.push({ key: `challenge:${progress.week}`, kind: 'challenge' })
+  }
+
+  return items
+}
+
+function navigatorSaveData(): boolean {
+  const connection = (
+    navigator as Navigator & { connection?: { saveData?: boolean } }
+  ).connection
+  return connection?.saveData === true
+}
+
+function defaultDataSaver(): boolean {
+  try {
+    const saved = localStorage.getItem(DATA_SAVER_KEY)
+    if (saved === 'on') return true
+    if (saved === 'off') return false
+  } catch {
+    // localStorage indisponible : on garde le choix du navigateur.
+  }
+  return navigatorSaveData()
+}
+
+function tutorialKey(userId: string): string {
+  return `${TUTORIAL_KEY_PREFIX}:${userId}`
+}
+
+function tutorialDone(userId: string): boolean {
+  try {
+    return localStorage.getItem(tutorialKey(userId)) === 'done'
+  } catch {
+    return true
+  }
+}
+
+function finishTutorialFor(userId: string): void {
+  try {
+    localStorage.setItem(tutorialKey(userId), 'done')
+  } catch {
+    // Le tutoriel ne doit jamais bloquer l'application.
+  }
+}
+
+function seenKey(userId: string): string {
+  return `${SEEN_KEY_PREFIX}:${userId}`
+}
+
+function readSeenMilestones(userId: string): string[] | null {
+  try {
+    const stored = localStorage.getItem(seenKey(userId))
+    if (!stored) return null
+    const parsed: unknown = JSON.parse(stored)
+    if (!Array.isArray(parsed)) return null
+    return parsed.filter((item): item is string => typeof item === 'string')
+  } catch {
+    return null
+  }
+}
+
+function writeSeenMilestones(userId: string, keys: string[]): void {
+  try {
+    localStorage.setItem(seenKey(userId), JSON.stringify(keys))
+  } catch {
+    // Pas de célébration persistante si le stockage est bloqué.
   }
 }
 
@@ -126,6 +368,26 @@ function uniqueSorted(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'fr', { sensitivity: 'base' }),
   )
+}
+
+/** « 14 675 » devient « 14,7 k » (ou « 14.7k » en anglais). */
+function formatCompactCount(value: number, lang: Lang): string {
+  if (!Number.isFinite(value) || value <= 0) return '0'
+  if (value < 1000) return String(Math.trunc(value))
+  const divisor = value >= 1_000_000 ? 1_000_000 : 1000
+  const rounded = Math.round((value / divisor) * 10) / 10
+  const number = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(1).replace('.', lang === 'fr' ? ',' : '.')
+  const suffix =
+    divisor === 1_000_000
+      ? lang === 'fr'
+        ? ' M'
+        : 'M'
+      : lang === 'fr'
+        ? ' k'
+        : 'k'
+  return `${number}${suffix}`
 }
 
 function sameText(a: string, b: string): boolean {
@@ -171,6 +433,7 @@ function isCachedProject(value: unknown): value is Project {
     isStringArray(value.technologies) &&
     isStringArray(value.tags) &&
     typeof value.stars === 'number' &&
+    typeof value.github_stars === 'number' &&
     typeof value.last_activity === 'string' &&
     typeof value.created_at === 'string' &&
     typeof value.author.id === 'string' &&
@@ -326,6 +589,28 @@ function Icon({ name, size = 22 }: { name: string; size?: number }) {
         <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" />
       </>
     ),
+    flame: (
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" />
+    ),
+    book: (
+      <>
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+      </>
+    ),
+    target: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="5" />
+        <circle cx="12" cy="12" r="1" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect width="18" height="11" x="3" y="11" rx="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </>
+    ),
   }
   return (
     <svg
@@ -427,9 +712,7 @@ function Header({
           className="points"
           aria-label={
             stats
-              ? lang === 'en'
-                ? `Balance: ${stats.balance} points`
-                : `Solde : ${stats.balance} points`
+              ? undefined
               : lang === 'en'
                 ? 'Points unavailable'
                 : 'Points indisponibles'
@@ -454,7 +737,7 @@ function PointsCard() {
   const { stats, statsLoading, statsError, refreshStats } = useAuth()
   const lang = useLang()
   const totalEarned = stats?.total_earned ?? 0
-  const progress = levelInfo(totalEarned).percent
+  const progress = levelFor(totalEarned).percent
   return (
     <section className="glass points-card">
       <div className="section-title">
@@ -534,6 +817,176 @@ function Rising() {
     </section>
   )
 }
+function WeekCard({
+  progress,
+  loading,
+  error,
+  fromCache,
+  savedAt,
+  onRetry,
+  onHow,
+}: {
+  progress: ProgressSummary | null
+  loading: boolean
+  error: string | null
+  fromCache: boolean
+  savedAt: number | null
+  onRetry: () => void
+  onHow: () => void
+}) {
+  const lang = useLang()
+  const streak = progress?.streak
+  return (
+    <section className="glass week-card" aria-labelledby="week-title">
+      <div className="week-head">
+        <div>
+          <span className="week-flame" aria-hidden="true">
+            <Icon name="flame" size={19} />
+          </span>
+          <div>
+            <b id="week-title">
+              {lang === 'en' ? 'Your week' : 'Ta semaine'}
+            </b>
+            <small>
+              {progress
+                ? lang === 'en'
+                  ? `${progress.streak.current} week${progress.streak.current > 1 ? 's' : ''} in a row`
+                  : `${progress.streak.current} semaine${progress.streak.current > 1 ? 's' : ''} d’affilée`
+                : lang === 'en'
+                  ? 'Progress'
+                  : 'Progression'}
+            </small>
+          </div>
+        </div>
+        <button className="link-btn" type="button" onClick={onHow}>
+          {lang === 'en' ? 'How it works' : 'Comment ça marche'}
+        </button>
+      </div>
+
+      {loading && !progress ? (
+        <p className="week-state" role="status">
+          {lang === 'en' ? 'Loading your progress…' : 'Chargement de ta progression…'}
+        </p>
+      ) : progress ? (
+        <>
+          <div className="week-streak">
+            <span className={progress.activeThisWeek ? 'active' : ''}>
+              <Icon name="flame" size={24} />
+            </span>
+            <p>
+              <b>{progress.streak.current}</b>
+              <small>
+                {lang === 'en'
+                  ? progress.streak.current === 1
+                    ? 'consecutive week'
+                    : 'consecutive weeks'
+                  : progress.streak.current === 1
+                    ? 'semaine consécutive'
+                    : 'semaines consécutives'}
+              </small>
+            </p>
+            <em>
+              {lang === 'en'
+                ? `Best: ${progress.streak.best}`
+                : `Record : ${progress.streak.best}`}
+            </em>
+          </div>
+          <ul className="week-quest">
+            {progress.quest.missions.map((mission) => {
+              const meta = QUEST_META[mission.id]
+              return (
+                <li key={mission.id} className={mission.done ? 'done' : ''}>
+                  <span aria-hidden="true">
+                    {mission.done && <Icon name="check" size={13} />}
+                  </span>
+                  <small>{meta.label[lang]}</small>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="week-joker">
+            {progress.streak.jokersUsed > 0
+              ? lang === 'en'
+                ? `${progress.streak.jokersUsed} joker${progress.streak.jokersUsed > 1 ? 's' : ''} used in this streak.`
+                : `${progress.streak.jokersUsed} joker${progress.streak.jokersUsed > 1 ? 's' : ''} utilisé${progress.streak.jokersUsed > 1 ? 's' : ''} dans cette série.`
+              : lang === 'en'
+                ? 'A joker forgives 1 missed week out of 4.'
+                : 'Un joker pardonne 1 semaine manquée sur 4.'}
+          </p>
+          {fromCache && savedAt && (
+            <small className="cache-date">
+              {lang === 'en' ? 'Last update: ' : 'Dernière mise à jour : '}
+              {formatDateTime(savedAt, lang)}
+            </small>
+          )}
+        </>
+      ) : (
+        <div className="week-state" role="status">
+          <p>{error ?? (lang === 'en' ? 'Progress unavailable' : 'Progression indisponible')}</p>
+          <button className="link-btn" type="button" onClick={onRetry}>
+            {lang === 'en' ? 'Try again' : 'Réessayer'}
+          </button>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ImpactStrip({
+  totals,
+  loading,
+}: {
+  totals: ProgressSummary['totals'] | null
+  loading: boolean
+}) {
+  const lang = useLang()
+  const number = (value: number) =>
+    new Intl.NumberFormat(lang === 'en' ? 'en-GB' : 'fr-FR').format(value)
+  const plural = (count: number | undefined, one: string, many: string) =>
+    count === 1 ? one : many
+  const items = [
+    {
+      icon: 'check',
+      value: totals?.resolvedQuestions,
+      label: lang === 'en'
+        ? plural(totals?.resolvedQuestions, 'question solved', 'questions solved')
+        : plural(totals?.resolvedQuestions, 'question résolue', 'questions résolues'),
+    },
+    {
+      icon: 'code',
+      value: totals?.projects,
+      label: lang === 'en'
+        ? plural(totals?.projects, 'project shared', 'projects shared')
+        : plural(totals?.projects, 'projet partagé', 'projets partagés'),
+    },
+    {
+      icon: 'handshake',
+      value: totals?.members,
+      label: lang === 'en'
+        ? plural(totals?.members, 'member', 'members')
+        : plural(totals?.members, 'membre', 'membres'),
+    },
+  ]
+  return (
+    <section
+      className="impact-strip"
+      aria-label={lang === 'en' ? 'Community impact' : 'Impact de la communauté'}
+      aria-live="polite"
+      aria-busy={loading}
+    >
+      {items.map((item) => (
+        <div key={item.label}>
+          <span aria-hidden="true">
+            <Icon name={item.icon} size={17} />
+          </span>
+          <b>{item.value === undefined ? '—' : number(item.value)}</b>
+          <small>{item.label}</small>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 function ProjectCard({
   project,
   compact = false,
@@ -551,6 +1004,24 @@ function ProjectCard({
   const relativeDate = formatRelativeDate(project.last_activity, lang)
   const license =
     project.license || (lang === 'en' ? 'No licence' : 'Licence non précisée')
+  const usage =
+    project.stars > 0
+      ? `★ ${project.stars} ${
+          lang === 'en'
+            ? 'useful'
+            : project.stars === 1
+              ? 'utile'
+              : 'utiles'
+        }`
+      : lang === 'en'
+        ? 'Not used on Bondev yet'
+        : 'Pas encore utilisé sur Bondev'
+  const githubStars =
+    project.github_stars > 0
+      ? `${formatCompactCount(project.github_stars, lang)} ${
+          lang === 'en' ? 'on GitHub' : 'sur GitHub'
+        }`
+      : ''
 
   return (
     <article className={`glass project ${compact ? 'compact' : ''}`}>
@@ -580,9 +1051,14 @@ function ProjectCard({
             {technologies && <span>{technologies}</span>}
             <span>{license}</span>
             {relativeDate && <span>{relativeDate}</span>}
-            <span>
-              ★ {project.stars} {lang === 'en' ? 'useful' : 'utiles'}
+            <span className={project.stars > 0 ? undefined : 'usage-empty'}>
+              {usage}
             </span>
+            {githubStars && (
+              <span className="github-stars">
+                <Icon name="github" size={12} /> {githubStars}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -847,6 +1323,13 @@ function Home({
   onRetry,
   onSearch,
   openProject,
+  progress,
+  progressLoading,
+  progressError,
+  progressFromCache,
+  progressSavedAt,
+  onProgressRetry,
+  onHow,
 }: {
   go: (s: Screen) => void
   projects: Project[] | null
@@ -857,6 +1340,13 @@ function Home({
   onRetry: () => void
   onSearch: (query: string) => void
   openProject: (project: Project, from: Screen) => void
+  progress: ProgressSummary | null
+  progressLoading: boolean
+  progressError: string | null
+  progressFromCache: boolean
+  progressSavedAt: number | null
+  onProgressRetry: () => void
+  onHow: () => void
 }) {
   const { profile } = useAuth()
   const lang = useLang()
@@ -927,6 +1417,19 @@ function Home({
               </div>
             </div>
           </section>
+          <WeekCard
+            progress={progress}
+            loading={progressLoading}
+            error={progressError}
+            fromCache={progressFromCache}
+            savedAt={progressSavedAt}
+            onRetry={onProgressRetry}
+            onHow={onHow}
+          />
+          <ImpactStrip
+            totals={progress?.totals ?? null}
+            loading={progressLoading}
+          />
           <div className="tablet-cards">
             <PointsCard />
             <Rising />
@@ -990,17 +1493,72 @@ function Home({
     </main>
   )
 }
+type FilterOption = {
+  value: string
+  /** Nombre de projets qui utilisent cette option, quand c'est pertinent. */
+  count?: number
+}
+
+type FilterGroup = {
+  title: string
+  options: FilterOption[]
+  selected: string[]
+  onToggle: (value: string) => void
+  /** Nombre d'options visibles avant le bouton « Voir plus ». */
+  limit?: number
+}
+
+function FilterGroupSection({ group }: { group: FilterGroup }) {
+  const [expanded, setExpanded] = useState(false)
+  const limit = group.limit ?? group.options.length
+  const hasMore = group.options.length > limit
+  const visibleOptions =
+    hasMore && !expanded
+      ? group.options.filter(
+          (option, index) =>
+            index < limit || group.selected.includes(option.value),
+        )
+      : group.options
+
+  return (
+    <fieldset>
+      <legend>{group.title}</legend>
+      {group.options.length === 0 ? (
+        <small className="filter-empty">Aucune option</small>
+      ) : (
+        visibleOptions.map((option) => (
+          <label key={option.value}>
+            <input
+              type="checkbox"
+              checked={group.selected.includes(option.value)}
+              onChange={() => group.onToggle(option.value)}
+            />
+            <span>{option.value}</span>
+            {typeof option.count === 'number' && (
+              <small className="filter-count">{option.count}</small>
+            )}
+          </label>
+        ))
+      )}
+      {hasMore && (
+        <button
+          className="link-btn filter-more"
+          onClick={() => setExpanded((current) => !current)}
+          type="button"
+        >
+          {expanded ? 'Voir moins' : 'Voir plus'}
+        </button>
+      )}
+    </fieldset>
+  )
+}
+
 function Filters({
   groups,
   activeCount,
   onReset,
 }: {
-  groups: {
-    title: string
-    options: string[]
-    selected: string[]
-    onToggle: (value: string) => void
-  }[]
+  groups: FilterGroup[]
   activeCount: number
   onReset: () => void
 }) {
@@ -1015,23 +1573,7 @@ function Filters({
         )}
       </div>
       {groups.map((group) => (
-        <fieldset key={group.title}>
-          <legend>{group.title}</legend>
-          {group.options.length === 0 ? (
-            <small className="filter-empty">Aucune option</small>
-          ) : (
-            group.options.map((option) => (
-              <label key={option}>
-                <input
-                  type="checkbox"
-                  checked={group.selected.includes(option)}
-                  onChange={() => group.onToggle(option)}
-                />
-                <span>{option}</span>
-              </label>
-            ))
-          )}
-        </fieldset>
+        <FilterGroupSection key={group.title} group={group} />
       ))}
     </aside>
   )
@@ -1065,19 +1607,46 @@ function Results({
   const [selectedLicenses, setSelectedLicenses] = useState<string[]>([])
   const [selectedContexts, setSelectedContexts] = useState<string[]>([])
 
-  const availableTechnologies = useMemo(
-    () => uniqueSorted((projects ?? []).flatMap((project) => project.technologies)),
-    [projects],
-  )
+  /**
+   * Les technologies sont regroupées sans tenir compte de la casse, puis
+   * classées par nombre de projets. Seules les 12 premières sont visibles
+   * tant que l'utilisateur n'a pas cliqué sur « Voir plus ».
+   */
+  const technologyOptions = useMemo<FilterOption[]>(() => {
+    const counts = new Map<string, { value: string; count: number }>()
+    for (const project of projects ?? []) {
+      const seen = new Set<string>()
+      for (const raw of project.technologies) {
+        const value = raw.trim()
+        if (!value) continue
+        const key = normalizeSearchText(value)
+        if (!key || seen.has(key)) continue
+        seen.add(key)
+        const existing = counts.get(key)
+        if (existing) existing.count += 1
+        else counts.set(key, { value, count: 1 })
+      }
+    }
+    return [...counts.values()]
+      .sort(
+        (a, b) =>
+          b.count - a.count ||
+          a.value.localeCompare(b.value, 'fr', { sensitivity: 'base' }),
+      )
+      .map(({ value, count }) => ({ value, count }))
+  }, [projects])
   const availableLicenses = useMemo(
-    () => uniqueSorted((projects ?? []).map((project) => project.license)),
+    () =>
+      uniqueSorted((projects ?? []).map((project) => project.license)).map(
+        (value) => ({ value }),
+      ),
     [projects],
   )
   const availableContexts = useMemo(() => {
     const tags = (projects ?? []).flatMap((project) => project.tags)
     return AFRICAN_CONTEXT_TAGS.filter((context) =>
       tags.some((tag) => sameText(tag, context)),
-    )
+    ).map((value) => ({ value }))
   }, [projects])
 
   const outcome = useMemo(
@@ -1201,9 +1770,10 @@ function Results({
             groups={[
               {
                 title: 'Technologie',
-                options: availableTechnologies,
+                options: technologyOptions,
                 selected: selectedTechnologies,
                 onToggle: toggle(setSelectedTechnologies),
+                limit: 12,
               },
               {
                 title: 'Licence',
@@ -1397,6 +1967,7 @@ function ProjectDetail({
       setUsed(true)
       setCelebration(true)
       onUsed(project.id)
+      notifyProgressChanged()
     } catch (cause) {
       const message = toFrenchError(cause)
       setActionError(message)
@@ -1471,8 +2042,8 @@ function ProjectDetail({
             </div>
             <div>
               <Icon name="star" size={20} />
-              <b>★ {project.stars}</b>
-              <span>{lang === 'en' ? 'Useful' : 'Utiles'}</span>
+              <b>{project.stars > 0 ? `★ ${project.stars}` : '—'}</b>
+              <span>{lang === 'en' ? 'Useful on Bondev' : 'Utiles sur Bondev'}</span>
             </div>
             <div>
               <Icon name="code" size={20} />
@@ -1482,11 +2053,26 @@ function ProjectDetail({
           </div>
 
           <p className="usage-line">
-            {lang === 'en' ? 'Used by' : 'Utilisé par'}{' '}
-            <b>
-              {project.stars} dev{project.stars === 1 ? '' : 's'}
-            </b>
+            {project.stars > 0 ? (
+              <>
+                {lang === 'en' ? 'Used by' : 'Utilisé par'}{' '}
+                <b>
+                  {project.stars} dev{project.stars === 1 ? '' : 's'}
+                </b>
+              </>
+            ) : lang === 'en' ? (
+              'Not used on Bondev yet'
+            ) : (
+              'Pas encore utilisé sur Bondev'
+            )}
           </p>
+          {project.github_stars > 0 && (
+            <p className="github-stars-line">
+              <Icon name="github" size={16} />{' '}
+              <b>{formatCompactCount(project.github_stars, lang)}</b>{' '}
+              {lang === 'en' ? 'on GitHub' : 'sur GitHub'}
+            </p>
+          )}
 
           <div className="project-actions">
             {repoLink && (
@@ -1674,6 +2260,7 @@ function ShareProject({
       })
       setPublished(result)
       await refreshStats().catch(() => undefined)
+      notifyProgressChanged()
       onPublished()
     } catch (cause) {
       setPublishError(toFrenchError(cause))
@@ -2279,6 +2866,7 @@ function QuestionThread({
     try {
       await validateAnswer(answer.id)
       await refreshStats()
+      notifyProgressChanged({ celebration: 'validated' })
       setNotice(
         lang === 'en'
           ? `Thank you! ${amount} transferred to @${pseudo}.`
@@ -2313,6 +2901,7 @@ function QuestionThread({
     try {
       await withdrawQuestion(question.id)
       await refreshStats()
+      notifyProgressChanged()
       setNotice(
         question.is_free
           ? lang === 'en'
@@ -2341,6 +2930,7 @@ function QuestionThread({
       if (draftKey) clearDraft(draftKey)
       setAnswerBody('')
       setAnswerProof('')
+      notifyProgressChanged()
       setNotice(lang === 'en' ? 'Your answer has been sent.' : 'Ta réponse a bien été envoyée.')
       refresh()
     } catch (cause: unknown) {
@@ -2389,6 +2979,7 @@ function QuestionThread({
     try {
       await deleteAnswer(answer.id)
       if (editingId === answer.id) setEditingId(null)
+      notifyProgressChanged()
       setNotice(lang === 'en' ? 'Your answer has been deleted.' : 'Ta réponse a été supprimée.')
       refresh()
     } catch (cause: unknown) {
@@ -3078,7 +3669,692 @@ function Add({
   )
 }
 
-function Profile() {
+function BadgeFamilyCard({
+  family,
+  badge,
+}: {
+  family: BadgeFamily
+  badge: TierBadgeProgress
+}) {
+  const lang = useLang()
+  const meta = BADGE_FAMILY_META[family]
+  const currentTier = badge.tier
+    ? tierName(badge.tier, lang)
+    : lang === 'en'
+      ? 'No tier yet'
+      : 'Aucun palier'
+  const countLabel = `${badge.count} ${unitFor(family, badge.count, lang)}`
+  const nextLabel = badge.nextTier
+    ? lang === 'en'
+      ? `${badge.remaining} more ${unitFor(family, badge.remaining, lang)} for ${tierName(badge.nextTier, lang)}`
+      : `${badge.remaining} ${unitFor(family, badge.remaining, lang)} de plus pour le palier ${tierName(badge.nextTier, lang)}`
+    : lang === 'en'
+      ? 'Highest tier reached'
+      : 'Palier maximal atteint'
+  const aria =
+    lang === 'en'
+      ? `${familyLabel(family, lang)} badge: ${currentTier}. ${countLabel}. ${nextLabel}`
+      : `Badge ${familyLabel(family, lang)} : ${currentTier}. ${countLabel}. ${nextLabel}`
+
+  return (
+    <article
+      className={`badge-family tier-${badge.tier ?? 'none'}`}
+      aria-label={aria}
+    >
+      <div className="badge-family-head">
+        <span className="badge-medal" aria-hidden="true">
+          <Icon name={meta.icon} size={20} />
+        </span>
+        <div>
+          <b>{meta.label[lang]}</b>
+          <small>{currentTier}</small>
+        </div>
+        <strong>{badge.count}</strong>
+      </div>
+      <div
+        className="badge-bar"
+        role="img"
+        aria-label={
+          lang === 'en'
+            ? `${Math.round(badge.percent)}% towards the next tier`
+            : `${Math.round(badge.percent)} % vers le palier suivant`
+        }
+      >
+        <span style={{ width: `${badge.percent}%` }} />
+      </div>
+      <small className="badge-next">{nextLabel}</small>
+    </article>
+  )
+}
+
+function SpecialtyBadgeCard({ badge }: { badge: SpecialtyProgress }) {
+  const lang = useLang()
+  const currentTier = badge.tier
+    ? tierName(badge.tier, lang)
+    : lang === 'en'
+      ? 'No tier yet'
+      : 'Aucun palier'
+  const countLabel = `${badge.count} ${
+    badge.count === 1
+      ? lang === 'en'
+        ? 'validated answer'
+        : 'réponse validée'
+      : lang === 'en'
+        ? 'validated answers'
+        : 'réponses validées'
+  }`
+  const nextLabel = badge.nextTier
+    ? lang === 'en'
+      ? `${badge.remaining} more for ${tierName(badge.nextTier, lang)}`
+      : `${badge.remaining} de plus pour le palier ${tierName(badge.nextTier, lang)}`
+    : lang === 'en'
+      ? 'Highest tier reached'
+      : 'Palier maximal atteint'
+
+  return (
+    <article
+      className={`specialty-badge tier-${badge.tier ?? 'none'}`}
+      aria-label={`Expert ${badge.technology} — ${currentTier}, ${countLabel}`}
+    >
+      <div className="specialty-badge-head">
+        <span aria-hidden="true">
+          <Icon name="code" size={18} />
+        </span>
+        <div>
+          <b>Expert {badge.technology}</b>
+          <small>
+            {currentTier} · {countLabel}
+          </small>
+        </div>
+      </div>
+      <div className="badge-bar" aria-hidden="true">
+        <span style={{ width: `${badge.percent}%` }} />
+      </div>
+      <small className="badge-next">{nextLabel}</small>
+    </article>
+  )
+}
+
+function CommunityBadgeTile({ badge }: { badge: CommunityBadgeProgress }) {
+  const lang = useLang()
+  const meta = COMMUNITY_META[badge.id]
+  const state =
+    badge.unlocked
+      ? lang === 'en'
+        ? 'Unlocked'
+        : 'Débloqué'
+      : lang === 'en'
+        ? 'Locked'
+        : 'À débloquer'
+  return (
+    <article
+      className={`community-badge ${badge.unlocked ? 'unlocked' : ''}`}
+      aria-label={`${meta.title[lang]} — ${state}. ${meta.description[lang]}`}
+    >
+      <span aria-hidden="true">
+        <Icon name={badge.unlocked ? meta.icon : 'lock'} size={19} />
+      </span>
+      <div>
+        <b>{meta.title[lang]}</b>
+        <small>{meta.description[lang]}</small>
+      </div>
+      <em>
+        {badge.id === 'kind'
+          ? `${badge.count} / ${badge.target}`
+          : badge.unlocked
+            ? '✓'
+            : '—'}
+      </em>
+    </article>
+  )
+}
+
+function QuestChecklist({ quest }: { quest: ProgressSummary['quest'] }) {
+  const lang = useLang()
+  return (
+    <ul className="quest-list">
+      {quest.missions.map((mission) => (
+        <li key={mission.id} className={mission.done ? 'done' : ''}>
+          <span className="quest-check" aria-hidden="true">
+            {mission.done && <Icon name="check" size={14} />}
+          </span>
+          <span>
+            <Icon name={QUEST_META[mission.id].icon} size={18} />
+            <small>{questLabel(mission.id, lang)}</small>
+          </span>
+          <em>
+            {mission.done
+              ? lang === 'en'
+                ? 'Done'
+                : 'Fait'
+              : lang === 'en'
+                ? 'To do'
+                : 'À faire'}
+          </em>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ChallengePanel({
+  challenge,
+}: {
+  challenge: ProgressSummary['challenge']
+}) {
+  const lang = useLang()
+  const target = challenge.target || CHALLENGE_TARGET
+  const percent = Math.min(
+    100,
+    (challenge.resolved / Math.max(1, target)) * 100,
+  )
+  const remaining = Math.max(0, target - challenge.resolved)
+  const message = challenge.achieved
+    ? challenge.badgeUnlocked
+      ? lang === 'en'
+        ? 'Goal reached! The “Challenge of the week” badge is unlocked.'
+        : 'Objectif atteint ! Le badge « Défi de la semaine » est débloqué.'
+      : lang === 'en'
+        ? 'The community reached the goal. Take one action this week to unlock the badge.'
+        : 'La communauté a atteint l’objectif. Fais une action cette semaine pour débloquer le badge.'
+    : lang === 'en'
+      ? `${remaining} more question${remaining > 1 ? 's' : ''} to solve this week.`
+      : `${remaining} question${remaining > 1 ? 's' : ''} encore à résoudre cette semaine.`
+
+  return (
+    <section className="glass challenge-panel">
+      <div className="challenge-head">
+        <span aria-hidden="true">
+          <Icon name="target" size={21} />
+        </span>
+        <div>
+          <b>{lang === 'en' ? 'Weekly challenge' : 'Défi de la semaine'}</b>
+          <small>
+            {lang === 'en'
+              ? 'The whole community'
+              : 'Toute la communauté'}
+          </small>
+        </div>
+      </div>
+      <div className="challenge-score">
+        <b>
+          {challenge.resolved} / {target}
+        </b>
+        <span>
+          {lang === 'en' ? 'questions solved' : 'questions résolues'}
+        </span>
+      </div>
+      <div
+        className="challenge-bar"
+        role="img"
+        aria-label={
+          lang === 'en'
+            ? `${challenge.resolved} out of ${target} questions solved`
+            : `${challenge.resolved} questions résolues sur ${target}`
+        }
+      >
+        <span style={{ width: `${percent}%` }} />
+      </div>
+      <p>{message}</p>
+    </section>
+  )
+}
+
+function celebrationContent(
+  item: Celebration,
+  lang: Lang,
+): { title: string; body: string; icon: string } {
+  if (item.kind === 'level') {
+    return {
+      icon: 'trophy',
+      title: lang === 'en' ? 'New level!' : 'Nouveau niveau !',
+      body:
+        lang === 'en'
+          ? `You are now ${item.level.nameEn}.`
+          : `Tu es maintenant ${item.level.name}.`,
+    }
+  }
+  if (item.kind === 'badge') {
+    return {
+      icon: BADGE_FAMILY_META[item.family].icon,
+      title:
+        lang === 'en'
+          ? `${tierName(item.tier, lang)} badge unlocked`
+          : `Badge ${tierName(item.tier, lang)} débloqué`,
+      body: familyLabel(item.family, lang),
+    }
+  }
+  if (item.kind === 'specialty') {
+    return {
+      icon: 'code',
+      title: `Expert ${item.technology}`,
+      body:
+        lang === 'en'
+          ? `${tierName(item.tier, lang)} specialty unlocked.`
+          : `Spécialité ${tierName(item.tier, lang)} débloquée.`,
+    }
+  }
+  if (item.kind === 'community') {
+    return {
+      icon: COMMUNITY_META[item.id].icon,
+      title: COMMUNITY_META[item.id].title[lang],
+      body: COMMUNITY_META[item.id].description[lang],
+    }
+  }
+  if (item.kind === 'quest') {
+    return {
+      icon: 'target',
+      title: lang === 'en' ? 'Quest complete!' : 'Quête terminée !',
+      body:
+        lang === 'en'
+          ? 'All three missions are done for this week.'
+          : 'Les trois missions de la semaine sont faites.',
+    }
+  }
+  if (item.kind === 'validated') {
+    return {
+      icon: 'check',
+      title: lang === 'en' ? 'Answer validated!' : 'Réponse validée !',
+      body:
+        lang === 'en'
+          ? 'The held points were sent and your progress has been updated.'
+          : 'Les points mis de côté ont été envoyés et ta progression est à jour.',
+    }
+  }
+  return {
+    icon: 'flame',
+    title:
+      lang === 'en' ? 'Weekly challenge won!' : 'Défi de la semaine réussi !',
+    body:
+      lang === 'en'
+        ? 'The community solved 10 questions this week.'
+        : 'La communauté a résolu 10 questions cette semaine.',
+  }
+}
+
+function CelebrationToast({
+  item,
+  onClose,
+}: {
+  item: Celebration
+  onClose: () => void
+}) {
+  const lang = useLang()
+  const content = celebrationContent(item, lang)
+
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 6000)
+    return () => window.clearTimeout(timer)
+  }, [item.key, onClose])
+
+  return (
+    <div className="celebration-layer" role="status" aria-live="polite">
+      <section className="celebration-toast">
+        <span className="celebration-icon" aria-hidden="true">
+          <Icon name={content.icon} size={26} />
+        </span>
+        <div>
+          <b>{content.title}</b>
+          <p>{content.body}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={lang === 'en' ? 'Close' : 'Fermer'}
+        >
+          <Icon name="close" size={16} />
+        </button>
+      </section>
+    </div>
+  )
+}
+
+function Tutorial({ onDone }: { onDone: () => void }) {
+  const lang = useLang()
+  const [step, setStep] = useState(0)
+  const steps = [
+    {
+      icon: 'flame',
+      title: lang === 'en' ? 'Progress at your pace' : 'Progresse à ton rythme',
+      body:
+        lang === 'en'
+          ? 'Your level depends on the points you have earned since you joined. It never goes down, even when you spend points.'
+          : 'Ton niveau dépend des points gagnés depuis ton arrivée. Il ne baisse jamais, même quand tu dépenses des points.',
+    },
+    {
+      icon: 'handshake',
+      title: lang === 'en' ? 'Build your streak' : 'Construis ta série',
+      body:
+        lang === 'en'
+          ? 'One useful action per week keeps your streak alive: an answer, a validated answer, a project or a “This helped me”. A joker can forgive one missed week.'
+          : 'Une action utile par semaine garde ta série : une réponse, une validation, un projet ou un « Ça m’a servi ». Un joker peut pardonner une semaine manquée.',
+    },
+    {
+      icon: 'target',
+      title: lang === 'en' ? 'Quests and badges' : 'Quêtes et badges',
+      body:
+        lang === 'en'
+          ? 'Complete three missions each week, help the community solve 10 questions, and unlock bronze, silver and gold badges.'
+          : 'Accomplis trois missions chaque semaine, aide la communauté à résoudre 10 questions et débloque des badges bronze, argent et or.',
+    },
+  ]
+  const current = steps[step]
+  const last = step === steps.length - 1
+
+  const finish = () => onDone()
+
+  return (
+    <div
+      className="tutorial-layer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tutorial-title"
+    >
+      <section className="tutorial-card">
+        <div className="tutorial-top">
+          <span>
+            {step + 1} / {steps.length}
+          </span>
+          <button type="button" className="link-btn" onClick={finish}>
+            {lang === 'en' ? 'Skip' : 'Passer'}
+          </button>
+        </div>
+        <span className="tutorial-icon" aria-hidden="true">
+          <Icon name={current.icon} size={34} />
+        </span>
+        <h2 id="tutorial-title">{current.title}</h2>
+        <p>{current.body}</p>
+        <div className="tutorial-dots" aria-hidden="true">
+          {steps.map((item, index) => (
+            <i key={item.title} className={index === step ? 'active' : ''} />
+          ))}
+        </div>
+        <div className="tutorial-actions">
+          {step > 0 && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setStep((value) => value - 1)}
+            >
+              {lang === 'en' ? 'Back' : 'Retour'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              if (last) finish()
+              else setStep((value) => value + 1)
+            }}
+          >
+            {last
+              ? lang === 'en'
+                ? 'Start'
+                : 'C’est parti'
+              : lang === 'en'
+                ? 'Next'
+                : 'Suivant'}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function HowItWorks({ back }: { back: () => void }) {
+  const lang = useLang()
+  const tr = (fr: string, en: string) => (lang === 'en' ? en : fr)
+  const tierRows: [string, string][] = [
+    [tr('Question palier 1', 'Tier 1 question'), '1'],
+    [tr('Question palier 3', 'Tier 3 question'), '3'],
+    [tr('Question palier 6', 'Tier 6 question'), '6'],
+  ]
+
+  return (
+    <main className="screen how-screen">
+      <Header title={tr('Comment ça marche', 'How it works')} back={back} />
+      <section className="how-intro glass">
+        <span aria-hidden="true">
+          <Icon name="book" size={26} />
+        </span>
+        <div>
+          <h1>{tr('Le jeu de l’entraide', 'The helping game')}</h1>
+          <p>
+            {tr(
+              'Cinq règles simples, des points réels et des badges pour reconnaître ceux qui font avancer la communauté.',
+              'Five simple rules, real points and badges that recognise the people moving the community forward.',
+            )}
+          </p>
+        </div>
+      </section>
+
+      <section className="how-section">
+        <h2>{tr('Les 5 règles', 'The 5 rules')}</h2>
+        <ol className="rules-list">
+          <li>
+            <b>{tr('Aide quelqu’un', 'Help someone')}</b>
+            <span>
+              {tr(
+                'Réponds à une question. Quand l’auteur valide ta réponse, tu reçois le palier mis de côté.',
+                'Answer a question. When the author validates your answer, you receive the held points.',
+              )}
+            </span>
+          </li>
+          <li>
+            <b>{tr('Partage un projet', 'Share a project')}</b>
+            <span>
+              {tr(
+                'Publie un projet open source : +3 points. Chaque « Ça m’a servi » reçu rapporte +1 point.',
+                'Publish an open-source project: +3 points. Every “This helped me” received earns +1 point.',
+              )}
+            </span>
+          </li>
+          <li>
+            <b>{tr('Pose une question', 'Ask a question')}</b>
+            <span>
+              {tr(
+                'Choisis un palier de 1, 3 ou 6 points. Les points sont mis de côté puis donnés à la réponse validée, ou remboursés après 7 jours sans validation.',
+                'Choose a 1, 3 or 6 point tier. Points are held, then given to the validated answer, or refunded after 7 days without a validation.',
+              )}
+            </span>
+          </li>
+          <li>
+            <b>{tr('Dis merci', 'Say thanks')}</b>
+            <span>
+              {tr(
+                'Clique sur « Ça m’a servi » quand un projet t’aide vraiment. L’auteur gagne +1 point, une fois par personne et par projet.',
+                'Click “This helped me” when a project truly helps you. The author earns +1 point, once per person and per project.',
+              )}
+            </span>
+          </li>
+          <li>
+            <b>{tr('Reviens chaque semaine', 'Come back every week')}</b>
+            <span>
+              {tr(
+                'Une action utile par semaine entretient ta série, ta quête et le défi collectif.',
+                'One useful action per week keeps your streak, quest and the collective challenge alive.',
+              )}
+            </span>
+          </li>
+        </ol>
+      </section>
+
+      <section className="how-section">
+        <h2>{tr('Gagner et dépenser', 'Earn and spend')}</h2>
+        <div className="how-tables">
+          <div className="how-table-card">
+            <h3>{tr('Gagner des points', 'Earn points')}</h3>
+            <table>
+              <tbody>
+                <tr>
+                  <td>{tr('Inscription', 'Sign-up')}</td>
+                  <td>+5</td>
+                </tr>
+                <tr>
+                  <td>{tr('Réponse validée', 'Validated answer')}</td>
+                  <td>+1, +3 {tr('ou', 'or')} +6</td>
+                </tr>
+                <tr>
+                  <td>{tr('Projet publié', 'Project published')}</td>
+                  <td>+3</td>
+                </tr>
+                <tr>
+                  <td>{tr('« Ça m’a servi » reçu', '“This helped me” received')}</td>
+                  <td>+1</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="how-table-card">
+            <h3>{tr('Dépenser des points', 'Spend points')}</h3>
+            <table>
+              <tbody>
+                {tierRows.map(([label, value]) => (
+                  <tr key={label}>
+                    <td>{label}</td>
+                    <td>−{value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <small>
+              {tr(
+                'La question gratuite de la semaine couvre le palier 1. Un projet n’utilise jamais de points.',
+                'The weekly free question covers tier 1. A project never spends points.',
+              )}
+            </small>
+          </div>
+        </div>
+      </section>
+
+      <section className="how-section">
+        <h2>{tr('Les paliers 1, 3 et 6', 'Tiers 1, 3 and 6')}</h2>
+        <p>
+          {tr(
+            'Le palier est le montant que tu mets en jeu. Plus la question est difficile, plus la réponse peut rapporter. Une seule réponse est validée par question, et la question expire après 7 jours.',
+            'The tier is the amount you put at stake. The harder the question, the more an answer can earn. Only one answer is validated per question, and the question expires after 7 days.',
+          )}
+        </p>
+      </section>
+
+      <section className="how-section">
+        <h2>{tr('Les niveaux', 'Levels')}</h2>
+        <ol className="level-list">
+          {LEVELS.map((level) => (
+            <li key={level.min}>
+              <b>{lang === 'en' ? level.nameEn : level.name}</b>
+              <span>
+                {level.min} {tr('points gagnés', 'points earned')}
+              </span>
+            </li>
+          ))}
+        </ol>
+        <p>
+          {tr(
+            'Ton niveau suit ton total gagné, pas ton solde. Il ne redescend donc jamais.',
+            'Your level follows your total earned, not your balance. It therefore never goes down.',
+          )}
+        </p>
+      </section>
+
+      <section className="how-section">
+        <h2>{tr('La série et les jokers', 'Streak and jokers')}</h2>
+        <p>
+          {tr(
+            'Les semaines vont du lundi au lundi en UTC. Une semaine est active dès que tu publies une réponse, qu’une réponse est validée par l’auteur de la question, que tu publies un projet ou que tu dis « Ça m’a servi ». Une simple connexion ne compte pas.',
+            'Weeks run Monday to Monday in UTC. A week is active as soon as you publish an answer, an answer is validated by the question author, you publish a project, or you mark a project as helpful. Simply logging in does not count.',
+          )}
+        </p>
+        <p>
+          {tr(
+            'Un joker pardonne une semaine manquée, à condition qu’elle soit encadrée par deux semaines actives et qu’aucun autre joker ne soit utilisé à moins de quatre semaines. Les semaines pardonnées comptent dans la série.',
+            'A joker forgives one missed week, provided it is surrounded by two active weeks and no other joker was used within four weeks. Forgiven weeks count towards the streak.',
+          )}
+        </p>
+      </section>
+
+      <section className="how-section">
+        <h2>{tr('Les badges', 'Badges')}</h2>
+        <table className="badge-table">
+          <thead>
+            <tr>
+              <th>{tr('Famille', 'Family')}</th>
+              <th>Bronze</th>
+              <th>{tr('Argent', 'Silver')}</th>
+              <th>{tr('Or', 'Gold')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(
+              [
+                ['help', tr('Entraide', 'Helping')],
+                ['share', tr('Partage', 'Sharing')],
+                ['useful', tr('Utilité', 'Usefulness')],
+                ['streak', tr('Série', 'Streak')],
+              ] as [BadgeFamily, string][]
+            ).map(([family, label]) => (
+              <tr key={family}>
+                <td>{label}</td>
+                {BADGE_THRESHOLDS[family].map((threshold) => (
+                  <td key={threshold}>{threshold}</td>
+                ))}
+              </tr>
+            ))}
+            <tr>
+              <td>{tr('Spécialités', 'Specialties')}</td>
+              {BADGE_THRESHOLDS.specialty.map((threshold) => (
+                <td key={threshold}>{threshold}</td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          {tr(
+            'Entraide = réponses validées. Partage = projets publiés. Utilité = « Ça m’a servi » reçus. Série = semaines consécutives. Spécialités : jusqu’à trois technologies, avec le titre « Expert <techno> ».',
+            'Helping = validated answers. Sharing = published projects. Usefulness = “This helped me” received. Streak = consecutive weeks. Specialties: up to three technologies, with the “Expert <technology>” title.',
+          )}
+        </p>
+        <p>
+          {tr(
+            'Badges Communauté : « Première réponse » pour ta première réponse, « Nouvelle voix » pour une réponse à une question débutant, « Bienveillant » pour trois réponses à des questions débutant.',
+            'Community badges: “First answer” for your first answer, “New voice” for an answer to a beginner question, “Kind” for three answers to beginner questions.',
+          )}
+        </p>
+      </section>
+
+      <section className="how-section">
+        <h2>{tr('Quête et défi', 'Quest and challenge')}</h2>
+        <p>
+          {tr(
+            'Chaque semaine, trois missions : répondre à une question débutant, publier un projet et dire « Ça m’a servi ». Le défi collectif est atteint quand la communauté résout 10 questions dans la semaine. Si tu as été actif, tu débloques le badge « Défi de la semaine ».',
+            'Each week, three missions: answer a beginner question, publish a project and mark a project as helpful. The collective challenge is reached when the community solves 10 questions in the week. If you were active, you unlock the “Challenge of the week” badge.',
+          )}
+        </p>
+        <button className="secondary" type="button" onClick={back}>
+          {tr('Retour au profil', 'Back to profile')}
+        </button>
+      </section>
+    </main>
+  )
+}
+
+function Profile({
+  go,
+  progressResult,
+  progressLoading,
+  progressError,
+  onRefreshProgress,
+  dataSaver,
+  onDataSaverChange,
+}: {
+  go: (s: Screen) => void
+  progressResult: ProgressResult | null
+  progressLoading: boolean
+  progressError: string | null
+  onRefreshProgress: () => void
+  dataSaver: boolean
+  onDataSaverChange: (value: boolean) => void
+}) {
   const {
     user,
     profile,
@@ -3124,14 +4400,19 @@ function Profile() {
     ? profile.avatar_url
     : ''
   const initials = initialsFor(displayName, pseudo)
-  const totalEarned = stats?.total_earned ?? 0
-  const info = levelInfo(totalEarned)
+  const progress = progressResult?.progress ?? null
+  const totalEarned = progress?.level.totalEarned ?? stats?.total_earned ?? 0
+  const info = progress?.level ?? levelFor(totalEarned)
+  const fromCache = progressResult?.fromCache ?? false
+  const savedAt = progressResult?.savedAt ?? null
+  const levelName =
+    lang === 'en' ? info.current.nameEn : info.current.name
 
-  const progressLabel = stats
+  const progressLabel = progress || stats
     ? info.next
       ? lang === 'en'
-        ? `${info.remaining} more points to reach ${info.next.en}`
-        : `Encore ${info.remaining} points pour le niveau ${info.next.name}`
+        ? `${info.remaining} more points to become ${info.next.nameEn}`
+        : `Encore ${info.remaining} points pour devenir ${info.next.name}`
       : lang === 'en'
         ? 'Highest level reached'
         : 'Niveau maximal atteint'
@@ -3151,6 +4432,10 @@ function Profile() {
     }
   }
 
+  const families: BadgeFamily[] = ['help', 'share', 'useful', 'streak']
+  const plural = (count: number, one: string, many: string) =>
+    count === 1 ? one : many
+
   return (
     <main className="screen">
       <Header title="Mon profil" />
@@ -3160,6 +4445,14 @@ function Profile() {
             <div className="glass profile-notice" role="status">
               <p>{profileError}</p>
               <button className="link-btn" onClick={() => void refreshProfile()}>
+                Réessayer
+              </button>
+            </div>
+          )}
+          {progressError && (
+            <div className="glass profile-notice" role="status">
+              <p>{progressError}</p>
+              <button className="link-btn" onClick={onRefreshProgress}>
                 Réessayer
               </button>
             </div>
@@ -3184,7 +4477,7 @@ function Profile() {
               <span>Total gagné</span>
             </div>
             <div>
-              <b className="stats-level">{stats?.level ?? '—'}</b>
+              <b className="stats-level">{levelName || '—'}</b>
               <span>Niveau</span>
             </div>
             <i>
@@ -3200,47 +4493,200 @@ function Profile() {
               Réessayer
             </button>
           )}
-          <section className="section profile">
-            <h2>Spécialités</h2>
-            <div className="specialties">
-              {[
-                ['Mobile Money', '86%'],
-                ['React', '72%'],
-                ['Node.js', '64%'],
-              ].map((x) => (
-                <div key={x[0]}>
-                  <span>{x[0]}</span>
-                  <i>
-                    <b style={{ width: x[1] }} />
-                  </i>
+
+          {progressLoading && !progress ? (
+            <section className="glass progress-loading" role="status">
+              {lang === 'en'
+                ? 'Loading your progress…'
+                : 'Chargement de ta progression…'}
+            </section>
+          ) : progress ? (
+            <>
+              <section className="glass streak-panel">
+                <div className="streak-head">
+                  <span className="streak-flame" aria-hidden="true">
+                    <Icon name="flame" size={27} />
+                  </span>
+                  <div>
+                    <b>{progress.streak.current}</b>
+                    <span>
+                      {lang === 'en'
+                        ? progress.streak.current === 1
+                          ? 'consecutive week'
+                          : 'consecutive weeks'
+                        : progress.streak.current === 1
+                          ? 'semaine d’affilée'
+                          : 'semaines d’affilée'}
+                    </span>
+                  </div>
+                  <em className={progress.activeThisWeek ? 'active' : ''}>
+                    {progress.activeThisWeek
+                      ? lang === 'en'
+                        ? 'This week counts'
+                        : 'Cette semaine compte'
+                      : lang === 'en'
+                        ? 'Your turn this week'
+                        : 'À toi de jouer cette semaine'}
+                  </em>
                 </div>
-              ))}
+                <p>
+                  {progress.streak.current > 0
+                    ? lang === 'en'
+                      ? `Your best streak: ${progress.streak.best} week${progress.streak.best > 1 ? 's' : ''}.`
+                      : `Ta meilleure série : ${progress.streak.best} semaine${progress.streak.best > 1 ? 's' : ''}.`
+                    : lang === 'en'
+                      ? 'One useful action this week starts your streak.'
+                      : 'Une action utile cette semaine lance ta série.'}
+                </p>
+                <small>
+                  {progress.streak.jokersUsed > 0
+                    ? lang === 'en'
+                      ? `${progress.streak.jokersUsed} joker${progress.streak.jokersUsed > 1 ? 's' : ''} used. A joker forgives one missed week out of four.`
+                      : `${progress.streak.jokersUsed} joker${progress.streak.jokersUsed > 1 ? 's' : ''} utilisé${progress.streak.jokersUsed > 1 ? 's' : ''}. Un joker pardonne une semaine manquée sur quatre.`
+                    : lang === 'en'
+                      ? 'A joker forgives one missed week out of four.'
+                      : 'Un joker pardonne une semaine manquée sur quatre.'}
+                </small>
+                {fromCache && savedAt && (
+                  <small className="cache-date">
+                    {lang === 'en' ? 'Last update: ' : 'Dernière mise à jour : '}
+                    {formatDateTime(savedAt, lang)}
+                  </small>
+                )}
+              </section>
+
+              <section className="glass quest-panel">
+                <div className="section-title">
+                  <h2>{lang === 'en' ? 'Weekly quest' : 'Quête de la semaine'}</h2>
+                  <span>
+                    {progress.quest.completed} / {progress.quest.total}
+                  </span>
+                </div>
+                <QuestChecklist quest={progress.quest} />
+                {progress.quest.allDone && (
+                  <p className="quest-success">
+                    {lang === 'en'
+                      ? 'Quest complete! All three missions are done.'
+                      : 'Quête terminée ! Les trois missions sont faites.'}
+                  </p>
+                )}
+              </section>
+
+              <ChallengePanel challenge={progress.challenge} />
+
+              <section className="section profile">
+                <h2>{lang === 'en' ? 'My badges' : 'Mes badges'}</h2>
+                <div className="badge-families">
+                  {families.map((family) => (
+                    <BadgeFamilyCard
+                      key={family}
+                      family={family}
+                      badge={progress.badges[family]}
+                    />
+                  ))}
+                </div>
+
+                <h2>Spécialités</h2>
+                {progress.badges.specialties.length > 0 ? (
+                  <div className="specialty-grid">
+                    {progress.badges.specialties.map((badge) => (
+                      <SpecialtyBadgeCard
+                        key={badge.technology}
+                        badge={badge}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="progress-hint">
+                    {lang === 'en'
+                      ? 'Answer questions in a technology to become an “Expert <technology>”.'
+                      : 'Réponds à des questions d’une technologie pour devenir « Expert <techno> ».'}
+                  </p>
+                )}
+
+                <h2>Communauté</h2>
+                <div className="community-grid">
+                  {progress.badges.community.map((badge) => (
+                    <CommunityBadgeTile key={badge.id} badge={badge} />
+                  ))}
+                </div>
+
+                <div className="impact impact-three">
+                  <div>
+                    <b>{progress.totals.resolvedQuestions}</b>
+                    <span>
+                      {lang === 'en'
+                        ? plural(
+                            progress.totals.resolvedQuestions,
+                            'question solved',
+                            'questions solved',
+                          )
+                        : plural(
+                            progress.totals.resolvedQuestions,
+                            'question résolue',
+                            'questions résolues',
+                          )}
+                    </span>
+                  </div>
+                  <div>
+                    <b>{progress.totals.projects}</b>
+                    <span>
+                      {lang === 'en'
+                        ? plural(
+                            progress.totals.projects,
+                            'project shared',
+                            'projects shared',
+                          )
+                        : plural(
+                            progress.totals.projects,
+                            'projet partagé',
+                            'projets partagés',
+                          )}
+                    </span>
+                  </div>
+                  <div>
+                    <b>{progress.totals.members}</b>
+                    <span>
+                      {lang === 'en'
+                        ? plural(progress.totals.members, 'member', 'members')
+                        : plural(progress.totals.members, 'membre', 'membres')}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  className="secondary profile-how"
+                  onClick={() => go('how')}
+                  type="button"
+                >
+                  <Icon name="book" size={18} />{' '}
+                  {lang === 'en' ? 'How it works' : 'Comment ça marche'}
+                </button>
+              </section>
+            </>
+          ) : null}
+
+          <section className="glass saver-row">
+            <div>
+              <b>{lang === 'en' ? 'Data saver' : 'Économie de données'}</b>
+              <small>
+                {lang === 'en'
+                  ? 'Turns off animations and blur, and lightens shadows.'
+                  : 'Coupe les animations et le flou, et allège les ombres.'}
+              </small>
             </div>
-            <h2>Mes badges</h2>
-            <div className="badges">
-              <div>
-                <Icon name="trophy" />
-                <span>Première réponse</span>
-              </div>
-              <div>
-                <Icon name="code" />
-                <span>Nouvelle voix</span>
-              </div>
-              <div>
-                <Icon name="handshake" />
-                <span>Bienveillant</span>
-              </div>
-            </div>
-            <div className="impact">
-              <div>
-                <b>17 h</b>
-                <span>d’aide données</span>
-              </div>
-              <div>
-                <b>6</b>
-                <span>projets partagés</span>
-              </div>
-            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={dataSaver}
+              aria-label={
+                lang === 'en' ? 'Data saver' : 'Économie de données'
+              }
+              className={`switch ${dataSaver ? 'on' : ''}`}
+              onClick={() => onDataSaverChange(!dataSaver)}
+            >
+              <span aria-hidden="true" />
+            </button>
           </section>
           <section className="glass lang-row">
             <span>Langue</span>
@@ -3358,6 +4804,7 @@ function Nav({
     ['help', 'handshake', 'Entraide'],
     ['add', 'plus', 'Ajouter'],
     ['profile', 'user', 'Profil'],
+    ['how', 'book', 'Règles'],
   ]
   return (
     <nav
@@ -3453,6 +4900,126 @@ export default function App() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(
     null,
   )
+  const [progressResult, setProgressResult] = useState<ProgressResult | null>(
+    null,
+  )
+  const [progressUserId, setProgressUserId] = useState<string | null>(null)
+  const [progressLoading, setProgressLoading] = useState(false)
+  const [progressError, setProgressError] = useState<string | null>(null)
+  const progressRequest = useRef(0)
+  const [celebrations, setCelebrations] = useState<Celebration[]>([])
+  const [tutorial, setTutorial] = useState(false)
+  const [dataSaver, setDataSaver] = useState(defaultDataSaver)
+
+  const userId = session?.user.id
+
+  const loadProgress = useCallback(async () => {
+    if (!userId) return
+    const request = progressRequest.current + 1
+    progressRequest.current = request
+    setProgressLoading(true)
+    setProgressError(null)
+    try {
+      const result = await getProgress()
+      if (request !== progressRequest.current) return
+      setProgressResult(result)
+      setProgressUserId(userId)
+    } catch (cause) {
+      if (request !== progressRequest.current) return
+      setProgressError(toFrenchError(cause))
+    } finally {
+      if (request === progressRequest.current) setProgressLoading(false)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    progressRequest.current += 1
+    setCelebrations([])
+    setProgressResult(null)
+    setProgressUserId(null)
+    setProgressError(null)
+    if (!userId) {
+      setProgressLoading(false)
+      return
+    }
+    setProgressLoading(true)
+    void loadProgress()
+  }, [userId, loadProgress])
+
+  useEffect(() => {
+    if (!userId) return
+    let timer = 0
+    const refresh = (event: Event) => {
+      if (
+        event instanceof CustomEvent &&
+        (event.detail as ProgressEventDetail | undefined)?.celebration ===
+          'validated'
+      ) {
+        setCelebrations((queue) => [
+          ...queue,
+          { key: `validated:${Date.now()}`, kind: 'validated' },
+        ])
+      }
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => void loadProgress(), 350)
+    }
+    window.addEventListener(PROGRESS_EVENT, refresh)
+    window.addEventListener('online', refresh)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener(PROGRESS_EVENT, refresh)
+      window.removeEventListener('online', refresh)
+    }
+  }, [userId, loadProgress])
+
+  useEffect(() => {
+    if (!userId || !progressResult || progressUserId !== userId) return
+    const milestones = milestonesFor(progressResult.progress)
+    const currentKeys = milestones.map((milestone) => milestone.key)
+    const seen = readSeenMilestones(userId)
+
+    if (seen === null) {
+      // Premier chargement : on enregistre l'état de départ sans célébrer.
+      writeSeenMilestones(userId, currentKeys)
+      return
+    }
+
+    const seenSet = new Set(seen)
+    const fresh = milestones.filter((milestone) => !seenSet.has(milestone.key))
+    writeSeenMilestones(userId, [
+      ...seen,
+      ...currentKeys.filter((key) => !seenSet.has(key)),
+    ])
+    if (fresh.length > 0) {
+      setCelebrations((queue) => [...queue, ...fresh])
+    }
+  }, [userId, progressResult, progressUserId])
+
+  useEffect(() => {
+    if (!userId) {
+      setTutorial(false)
+      return
+    }
+    setTutorial(!tutorialDone(userId))
+  }, [userId])
+
+  useEffect(() => {
+    document.documentElement.dataset.saver = dataSaver ? 'on' : 'off'
+    try {
+      localStorage.setItem(DATA_SAVER_KEY, dataSaver ? 'on' : 'off')
+    } catch {
+      // Le choix reste actif pour la session même si le stockage est bloqué.
+    }
+  }, [dataSaver])
+
+  const dismissCelebration = useCallback(() => {
+    setCelebrations((queue) => queue.slice(1))
+  }, [])
+
+  const completeTutorial = () => {
+    if (userId) finishTutorialFor(userId)
+    setTutorial(false)
+  }
 
   const loadProjects = useCallback(async () => {
     setProjectsLoading(true)
@@ -3477,7 +5044,6 @@ export default function App() {
     }
   }, [])
 
-  const userId = session?.user.id
   useEffect(() => {
     if (!userId) {
       setProjects(null)
@@ -3664,6 +5230,13 @@ export default function App() {
                   onRetry={retryProjects}
                   onSearch={openResults}
                   openProject={openProject}
+                  progress={progressResult?.progress ?? null}
+                  progressLoading={progressLoading}
+                  progressError={progressError}
+                  progressFromCache={progressResult?.fromCache ?? false}
+                  progressSavedAt={progressResult?.savedAt ?? null}
+                  onProgressRetry={() => void loadProgress()}
+                  onHow={() => go('how')}
                 />
               )}{' '}
               {activeScreen === 'results' && (
@@ -3713,7 +5286,20 @@ export default function App() {
                   onPosted={openQuestion}
                 />
               )}{' '}
-              {activeScreen === 'profile' && <Profile />}{' '}
+              {activeScreen === 'profile' && (
+                <Profile
+                  go={go}
+                  progressResult={progressResult}
+                  progressLoading={progressLoading}
+                  progressError={progressError}
+                  onRefreshProgress={() => void loadProgress()}
+                  dataSaver={dataSaver}
+                  onDataSaverChange={setDataSaver}
+                />
+              )}{' '}
+              {activeScreen === 'how' && (
+                <HowItWorks back={() => go('profile')} />
+              )}{' '}
               {activeScreen === 'states' && <States go={go} />}
             </div>
             <Nav
@@ -3761,6 +5347,14 @@ export default function App() {
                 </section>
               </div>
             )}
+            {celebrations[0] && (
+              <CelebrationToast
+                key={celebrations[0].key}
+                item={celebrations[0]}
+                onClose={dismissCelebration}
+              />
+            )}
+            {tutorial && <Tutorial onDone={completeTutorial} />}
           </>
         )}
       </div>

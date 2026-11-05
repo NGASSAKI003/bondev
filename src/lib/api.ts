@@ -5,6 +5,19 @@ import {
   type HelpStatus,
   type HelpTier,
 } from './help'
+import {
+  buildProgress,
+  startOfUtcWeek,
+  utcWeekKey,
+  type ProgressAnswerInput,
+  type ProgressChallengeInput,
+  type ProgressInput,
+  type ProgressProjectInput,
+  type ProgressQuestionInput,
+  type ProgressSummary,
+  type ProgressTotalsInput,
+  type ProgressUseInput,
+} from './progress'
 import { getSupabase } from './supabase'
 
 export const PROFILE_COLUMNS =
@@ -36,6 +49,15 @@ export type ProfileStats = {
   level: string
 }
 
+export type ProgressResult = {
+  /** Progression déjà calculée pour la semaine en cours. */
+  progress: ProgressSummary
+  /** Date du dernier chargement réussi, en millisecondes. */
+  savedAt: number
+  /** true quand la valeur vient du stockage local après une erreur réseau. */
+  fromCache: boolean
+}
+
 export type ProjectAuthor = {
   id: string
   pseudo: string
@@ -52,7 +74,10 @@ export type Project = {
   license: string
   technologies: string[]
   tags: string[]
+  /** Nombre de « Ça m’a servi » reçus sur Bondev. */
   stars: number
+  /** Étoiles du dépôt GitHub, importées par le catalogue. */
+  github_stars: number
   last_activity: string
   created_at: string
   author: ProjectAuthor
@@ -68,6 +93,7 @@ export type ProjectRow = {
   technologies: unknown
   tags: unknown
   stars: number | null
+  github_stars: number | null
   last_activity: string | null
   created_at: string | null
   author?: unknown
@@ -181,7 +207,7 @@ export const ANSWER_COLUMNS =
 
 /** Colonnes lues pour le catalogue, avec l’auteur via la clé étrangère. */
 export const PROJECT_COLUMNS =
-  'id,author_id,title,description,repo_url,license,technologies,tags,stars,last_activity,created_at,author:profiles!projects_author_id_fkey(id,pseudo,display_name,avatar_url)'
+  'id,author_id,title,description,repo_url,license,technologies,tags,stars,github_stars,last_activity,created_at,author:profiles!projects_author_id_fkey(id,pseudo,display_name,avatar_url)'
 
 export type PointReason =
   | 'signup'
@@ -448,6 +474,7 @@ export function normaliseProject(row: ProjectRow): Project {
   const authorId = readText(row.author_id)
   const createdAt = readText(row.created_at)
   const stars = Number(row.stars ?? 0)
+  const githubStars = Number(row.github_stars ?? 0)
 
   return {
     id: readText(row.id),
@@ -459,6 +486,7 @@ export function normaliseProject(row: ProjectRow): Project {
     technologies: readStringList(row.technologies),
     tags: readStringList(row.tags),
     stars: Number.isFinite(stars) ? Math.max(0, stars) : 0,
+    github_stars: Number.isFinite(githubStars) ? Math.max(0, githubStars) : 0,
     last_activity: readText(row.last_activity) || createdAt,
     created_at: createdAt,
     author: normaliseProjectAuthor(row.author, authorId),
@@ -552,6 +580,353 @@ export async function getMyLedger(limit = 20): Promise<LedgerEntry[]> {
     throw asApiError(error)
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Progression (lecture seule)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PROGRESS_CACHE_PREFIX = 'bondev-progress'
+const PROGRESS_CACHE_VERSION = 1
+const PROGRESS_TTL_MS = 60_000
+/** Plafonds de sécurité : la progression reste fluide même sur un gros compte. */
+const PROGRESS_ROW_LIMIT = 1000
+
+type ProgressRaw = ProgressInput & { savedAt: number }
+
+type ProgressMemoryCache = {
+  userId: string
+  raw: ProgressRaw
+  cachedAt: number
+}
+
+let progressMemoryCache: ProgressMemoryCache | null = null
+
+/** À appeler après une action qui peut changer la progression. */
+export function invalidateProgressCache(): void {
+  progressMemoryCache = null
+}
+
+function progressStorageKey(userId: string): string {
+  return `${PROGRESS_CACHE_PREFIX}:${PROGRESS_CACHE_VERSION}:${userId}`
+}
+
+function normaliseProgressRaw(value: unknown): ProgressRaw | null {
+  if (!isRecord(value)) return null
+  const savedAt = Number(value.savedAt)
+  if (!Number.isFinite(savedAt) || savedAt <= 0) return null
+
+  const totalEarned = Number(value.totalEarned)
+  const usesReceived = Number(value.usesReceived)
+  if (!Number.isFinite(totalEarned) || !Number.isFinite(usesReceived)) {
+    return null
+  }
+
+  const answers: ProgressAnswerInput[] = []
+  if (Array.isArray(value.answers)) {
+    for (const item of value.answers) {
+      if (!isRecord(item)) continue
+      const createdAt = readText(item.createdAt)
+      if (!createdAt) continue
+      answers.push({
+        createdAt,
+        validatedAt: readText(item.validatedAt) || undefined,
+        isUseful: item.isUseful === true,
+        beginnerOk: item.beginnerOk === true,
+        technologies: readStringList(item.technologies),
+      })
+    }
+  }
+
+  const authoredQuestions: ProgressQuestionInput[] = []
+  if (Array.isArray(value.authoredQuestions)) {
+    for (const item of value.authoredQuestions) {
+      if (!isRecord(item)) continue
+      const updatedAt = readText(item.updatedAt)
+      if (!updatedAt) continue
+      authoredQuestions.push({
+        updatedAt,
+        status: readText(item.status),
+        validatedAnswerId: readText(item.validatedAnswerId) || null,
+      })
+    }
+  }
+
+  const projects: ProgressProjectInput[] = []
+  if (Array.isArray(value.projects)) {
+    for (const item of value.projects) {
+      if (!isRecord(item)) continue
+      const createdAt = readText(item.createdAt)
+      if (createdAt) projects.push({ createdAt })
+    }
+  }
+
+  const usesGiven: ProgressUseInput[] = []
+  if (Array.isArray(value.usesGiven)) {
+    for (const item of value.usesGiven) {
+      if (!isRecord(item)) continue
+      const createdAt = readText(item.createdAt)
+      if (createdAt) usesGiven.push({ createdAt })
+    }
+  }
+
+  const challengeRow = isRecord(value.challenge) ? value.challenge : {}
+  const challenge: ProgressChallengeInput = {
+    week: readText(challengeRow.week),
+    resolved: Number(challengeRow.resolved),
+  }
+  if (!Number.isFinite(challenge.resolved)) challenge.resolved = 0
+
+  const totalsRow = isRecord(value.totals) ? value.totals : {}
+  const totals: ProgressTotalsInput = {
+    resolvedQuestions: Number(totalsRow.resolvedQuestions),
+    projects: Number(totalsRow.projects),
+    members: Number(totalsRow.members),
+  }
+  for (const key of [
+    'resolvedQuestions',
+    'projects',
+    'members',
+  ] as const) {
+    if (!Number.isFinite(totals[key])) totals[key] = 0
+  }
+
+  return {
+    totalEarned,
+    answers,
+    authoredQuestions,
+    projects,
+    usesGiven,
+    usesReceived,
+    challenge,
+    totals,
+    savedAt,
+  }
+}
+
+function loadCachedProgress(userId: string): ProgressRaw | null {
+  try {
+    const stored = localStorage.getItem(progressStorageKey(userId))
+    if (!stored) return null
+    return normaliseProgressRaw(JSON.parse(stored) as unknown)
+  } catch {
+    return null
+  }
+}
+
+function saveCachedProgress(userId: string, raw: ProgressRaw): void {
+  try {
+    localStorage.setItem(progressStorageKey(userId), JSON.stringify(raw))
+  } catch {
+    // Le cache local est un confort : son échec ne bloque jamais l'affichage.
+  }
+}
+
+function unsafeText(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function readEmbeddedQuestion(value: unknown): Record<string, unknown> {
+  if (Array.isArray(value)) {
+    return isRecord(value[0]) ? value[0] : {}
+  }
+  return isRecord(value) ? value : {}
+}
+
+async function fetchProgressRaw(userId: string): Promise<ProgressRaw> {
+  const client = getSupabase()
+  const now = new Date()
+  const week = utcWeekKey(now)
+  const weekStart = startOfUtcWeek(now).toISOString()
+
+  const [
+    statsResult,
+    answersResult,
+    authoredQuestionsResult,
+    projectsResult,
+    usesGivenResult,
+    usesReceivedResult,
+    challengeResult,
+    resolvedTotalResult,
+    projectsTotalResult,
+    membersResult,
+  ] = await Promise.all([
+    client
+      .from('profile_stats')
+      .select('total_earned')
+      .eq('id', userId)
+      .maybeSingle(),
+    client
+      .from('answers')
+      .select(
+        'id,is_useful,created_at,updated_at,question:questions!answers_question_id_fkey(id,technologies,beginner_ok)',
+      )
+      .eq('author_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(PROGRESS_ROW_LIMIT),
+    client
+      .from('questions')
+      .select('id,status,updated_at,validated_answer_id')
+      .eq('author_id', userId)
+      .eq('status', 'resolved')
+      .limit(PROGRESS_ROW_LIMIT),
+    client
+      .from('projects')
+      .select('id,created_at')
+      .eq('author_id', userId)
+      .limit(PROGRESS_ROW_LIMIT),
+    client
+      .from('project_uses')
+      .select('id,created_at')
+      .eq('user_id', userId)
+      .limit(PROGRESS_ROW_LIMIT),
+    client
+      .from('points_ledger')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('reason', 'project_used'),
+    client
+      .from('questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'resolved')
+      .gte('updated_at', weekStart),
+    client
+      .from('questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'resolved'),
+    client.from('projects').select('id', { count: 'exact', head: true }),
+    client.from('profiles').select('id', { count: 'exact', head: true }),
+  ])
+
+  if (statsResult.error) throw statsResult.error
+  if (answersResult.error) throw answersResult.error
+  if (authoredQuestionsResult.error) throw authoredQuestionsResult.error
+  if (projectsResult.error) throw projectsResult.error
+  if (usesGivenResult.error) throw usesGivenResult.error
+  if (usesReceivedResult.error) throw usesReceivedResult.error
+  if (challengeResult.error) throw challengeResult.error
+  if (resolvedTotalResult.error) throw resolvedTotalResult.error
+  if (projectsTotalResult.error) throw projectsTotalResult.error
+  if (membersResult.error) throw membersResult.error
+
+  if (!statsResult.data) {
+    throw new ApiError(
+      'Tes statistiques ne sont pas encore disponibles. Reconnecte-toi.',
+    )
+  }
+
+  const statsRow = statsResult.data as unknown as Record<string, unknown>
+  const totalEarned = Number(statsRow.total_earned)
+  if (!Number.isFinite(totalEarned)) {
+    throw new ApiError(
+      'Tes statistiques ne sont pas encore disponibles. Reconnecte-toi.',
+    )
+  }
+
+  const answers: ProgressAnswerInput[] = []
+  for (const item of (answersResult.data ?? []) as unknown[]) {
+    if (!isRecord(item)) continue
+    const question = readEmbeddedQuestion(item.question)
+    answers.push({
+      createdAt: readText(item.created_at),
+      validatedAt: readText(item.updated_at) || undefined,
+      isUseful: item.is_useful === true,
+      beginnerOk: question.beginner_ok === true,
+      technologies: readStringList(question.technologies),
+    })
+  }
+
+  const authoredQuestions: ProgressQuestionInput[] = []
+  for (const item of (authoredQuestionsResult.data ?? []) as unknown[]) {
+    if (!isRecord(item)) continue
+    authoredQuestions.push({
+      updatedAt: readText(item.updated_at),
+      status: unsafeText(item.status),
+      validatedAnswerId: readText(item.validated_answer_id) || null,
+    })
+  }
+
+  const projects: ProgressProjectInput[] = []
+  for (const item of (projectsResult.data ?? []) as unknown[]) {
+    if (!isRecord(item)) continue
+    projects.push({ createdAt: readText(item.created_at) })
+  }
+
+  const usesGiven: ProgressUseInput[] = []
+  for (const item of (usesGivenResult.data ?? []) as unknown[]) {
+    if (!isRecord(item)) continue
+    usesGiven.push({ createdAt: readText(item.created_at) })
+  }
+
+  return {
+    totalEarned,
+    answers,
+    authoredQuestions,
+    projects,
+    usesGiven,
+    usesReceived: usesReceivedResult.count ?? 0,
+    challenge: {
+      week,
+      resolved: challengeResult.count ?? 0,
+    },
+    totals: {
+      resolvedQuestions: resolvedTotalResult.count ?? 0,
+      projects: projectsTotalResult.count ?? 0,
+      members: membersResult.count ?? 0,
+    },
+    savedAt: Date.now(),
+  }
+}
+
+/**
+ * Progression complète : niveau, série, badges, quête et défi collectif.
+ *
+ * Cache mémoire de 60 secondes pour éviter de relire la base à chaque écran.
+ * En cas d'échec réseau, la dernière valeur est relue dans localStorage et
+ * renvoyée avec `fromCache: true` (l'interface affiche alors sa date).
+ */
+export async function getProgress(): Promise<ProgressResult> {
+  try {
+    const userId = await requireUserId()
+    const now = Date.now()
+    const cached = progressMemoryCache
+
+    if (
+      cached &&
+      cached.userId === userId &&
+      now - cached.cachedAt < PROGRESS_TTL_MS
+    ) {
+      return {
+        progress: buildProgress(cached.raw, new Date(now)),
+        savedAt: cached.raw.savedAt,
+        fromCache: !navigator.onLine,
+      }
+    }
+
+    try {
+      const raw = await fetchProgressRaw(userId)
+      progressMemoryCache = { userId, raw, cachedAt: Date.now() }
+      saveCachedProgress(userId, raw)
+      return {
+        progress: buildProgress(raw, new Date()),
+        savedAt: raw.savedAt,
+        fromCache: false,
+      }
+    } catch (cause) {
+      const fallback = loadCachedProgress(userId)
+      if (fallback) {
+        return {
+          progress: buildProgress(fallback, new Date()),
+          savedAt: fallback.savedAt,
+          fromCache: true,
+        }
+      }
+      throw cause
+    }
+  } catch (error) {
+    throw asApiError(error)
+  }
+}
+
 
 /** Met à jour uniquement les colonnes autorisées par les droits Supabase. */
 export async function updateMyProfile(
@@ -673,6 +1048,7 @@ export async function markProjectUsed(projectId: string): Promise<void> {
       }
       throw error
     }
+    invalidateProgressCache()
   } catch (error) {
     throw asApiError(error)
   }
@@ -743,6 +1119,8 @@ export async function publishProject(
         'Le projet a été publié, mais sa fiche n’est pas encore disponible. Recharge le catalogue.',
       )
     }
+
+    invalidateProgressCache()
 
     // La RPC ne renvoie que l’identifiant. On lit la ligne du registre pour
     // savoir si cette publication a bien rapporté +3 points (5 premières).
@@ -1067,6 +1445,7 @@ export async function addAnswer(
         'La réponse a été envoyée, mais elle n’est pas encore visible. Recharge la question.',
       )
     }
+    invalidateProgressCache()
     return answerId
   } catch (error) {
     throw asApiError(error)
@@ -1148,6 +1527,7 @@ export async function deleteAnswer(answerId: string): Promise<void> {
       .delete()
       .eq('id', answerId)
     if (error) throw error
+    invalidateProgressCache()
   } catch (error) {
     throw asApiError(error)
   }
@@ -1162,6 +1542,7 @@ export async function validateAnswer(answerId: string): Promise<void> {
       p_answer_id: answerId,
     })
     if (error) throw error
+    invalidateProgressCache()
   } catch (error) {
     throw asApiError(error)
   }
@@ -1176,6 +1557,7 @@ export async function withdrawQuestion(questionId: string): Promise<void> {
       p_question_id: questionId,
     })
     if (error) throw error
+    invalidateProgressCache()
   } catch (error) {
     throw asApiError(error)
   }

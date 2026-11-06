@@ -38,6 +38,137 @@ export function pointsLabel(points: number, lang: HelpLang = 'fr'): string {
   return `${value} ${value === 1 ? 'point' : 'points'}`
 }
 
+export const QUESTION_TITLE_MIN = 5
+export const QUESTION_TITLE_MAX = 300
+export const QUESTION_BODY_MIN = 10
+export const QUESTION_BODY_MAX = 10000
+
+export type QuestionFormField =
+  | 'title'
+  | 'body'
+  | 'technologies'
+  | 'tier'
+  | 'githubUrl'
+
+export type QuestionFormErrors = Partial<
+  Record<QuestionFormField, string>
+>
+
+export type QuestionFormValues = {
+  title: string
+  body: string
+  technologies: string | readonly string[]
+  tier: number
+  githubUrl?: string
+}
+
+const QUESTION_FIELD_ORDER: readonly QuestionFormField[] = [
+  'title',
+  'body',
+  'technologies',
+  'tier',
+  'githubUrl',
+]
+
+/** Découpe et nettoie une liste de technologies saisie avec des virgules. */
+export function parseQuestionTechnologies(
+  value: string | readonly string[],
+): string[] {
+  const values = typeof value === 'string' ? value.split(',') : value
+  const cleaned: string[] = []
+  for (const item of values) {
+    const technology = item.trim()
+    if (technology && !cleaned.includes(technology)) cleaned.push(technology)
+  }
+  return cleaned
+}
+
+function isQuestionGithubLink(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (
+      url.protocol === 'https:' &&
+      (url.hostname === 'github.com' || url.hostname === 'www.github.com') &&
+      url.pathname !== '/' &&
+      url.pathname !== ''
+    )
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Validation pure du formulaire de question. Les messages indiquent le champ
+ * fautif et les limites attendues, pour être affichés directement sous le champ.
+ */
+export function validateQuestionForm(
+  values: QuestionFormValues,
+  lang: HelpLang = 'fr',
+): QuestionFormErrors {
+  const errors: QuestionFormErrors = {}
+  const title = values.title.trim()
+  const body = values.body.trim()
+  const technologies = parseQuestionTechnologies(values.technologies)
+  const githubUrl = (values.githubUrl ?? '').trim()
+
+  if (title.length < QUESTION_TITLE_MIN || title.length > QUESTION_TITLE_MAX) {
+    errors.title =
+      lang === 'en'
+        ? `The title must be between ${QUESTION_TITLE_MIN} and ${QUESTION_TITLE_MAX} characters.`
+        : `Le titre doit contenir entre ${QUESTION_TITLE_MIN} et ${QUESTION_TITLE_MAX} caractères.`
+  }
+
+  if (body.length < QUESTION_BODY_MIN) {
+    errors.body =
+      lang === 'en'
+        ? `The description must contain at least ${QUESTION_BODY_MIN} characters explaining what is blocking you.`
+        : `La description doit contenir au moins ${QUESTION_BODY_MIN} caractères pour expliquer ton blocage.`
+  } else if (body.length > QUESTION_BODY_MAX) {
+    errors.body =
+      lang === 'en'
+        ? `The description must not exceed ${QUESTION_BODY_MAX.toLocaleString('en-US')} characters.`
+        : `La description ne doit pas dépasser ${QUESTION_BODY_MAX.toLocaleString('fr-FR')} caractères.`
+  }
+
+  if (technologies.length === 0) {
+    errors.technologies =
+      lang === 'en'
+        ? 'Choose at least one technology, separated by commas.'
+        : 'Choisis au moins une technologie, séparée par des virgules.'
+  }
+
+  if (!isHelpTier(values.tier)) {
+    errors.tier =
+      lang === 'en'
+        ? 'Choose a valid level: 1, 3 or 6 points.'
+        : 'Choisis un palier valide : 1, 3 ou 6 points.'
+  }
+
+  if (githubUrl && !isQuestionGithubLink(githubUrl)) {
+    errors.githubUrl =
+      lang === 'en'
+        ? 'The GitHub link must start with https://github.com/ and point to a page.'
+        : 'Le lien GitHub doit commencer par https://github.com/ et pointer vers une page.'
+  }
+
+  return errors
+}
+
+/** Premier champ invalide, dans l’ordre visuel du formulaire. */
+export function firstQuestionFormField(
+  errors: QuestionFormErrors,
+): QuestionFormField | null {
+  return QUESTION_FIELD_ORDER.find((field) => Boolean(errors[field])) ?? null
+}
+
+/** Premier message de validation, utile pour les appels API. */
+export function firstQuestionFormError(
+  errors: QuestionFormErrors,
+): string | null {
+  const field = firstQuestionFormField(errors)
+  return field ? (errors[field] ?? null) : null
+}
+
 /**
  * Temps restant avant l’expiration d’une question. Les jours sont arrondis au
  * supérieur : une question qui expire dans 4 jours et 2 heures reste « 5 j ».

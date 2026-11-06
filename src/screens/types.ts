@@ -1,0 +1,12 @@
+export type Screen =
+  | 'login'
+  | 'home'
+  | 'results'
+  | 'project'
+  | 'share'
+  | 'help'
+  | 'question'
+  | 'add'
+  | 'profile'
+  | 'how'
+  | 'states'

@@ -16,7 +16,12 @@ function ConfigurationScreen() {
     <div className="shell">
       <div className="phone" data-nav="none">
         <main className="loading-screen">
-          <img src="/assets/bondev-logo.png" alt="" />
+          <img
+            src="/assets/bondev-logo-192.webp"
+            width={192}
+            height={192}
+            alt=""
+          />
           <h1>Configuration requise</h1>
           <p>{supabaseConfigError}</p>
           <p className="config-hint">
@@ -43,12 +48,20 @@ class AppErrorBoundary extends React.Component<BoundaryProps, BoundaryState> {
       return (
         <div className="shell">
           <div className="phone" data-nav="none">
-            <main className="loading-screen">
-              <img src="/assets/bondev-logo.png" alt="" />
-              <h1>Une erreur inattendue est survenue.</h1>
-              <p>Recharge la page pour continuer.</p>
-              <button className="primary" onClick={() => window.location.reload()}>
-                Recharge la page
+            <main className="loading-screen" role="alert">
+              <img
+                src="/assets/bondev-logo-192.webp"
+                width={192}
+                height={192}
+                alt=""
+              />
+              <h1>Oups, quelque chose s'est mal passé</h1>
+              <p>Recharge l’application pour continuer.</p>
+              <button
+                className="primary"
+                onClick={() => window.location.reload()}
+              >
+                Recharger
               </button>
             </main>
           </div>

@@ -198,6 +198,7 @@ const EN: Record<string, string> = {
   'Ton brouillon est enregistré sur cet appareil et effacé après publication.': 'Your draft is saved on this device and removed after publishing.',
   'Hors-ligne : les envois sont désactivés. Tes brouillons restent sur cet appareil.': 'Offline: sending is disabled. Your drafts stay on this device.',
   'Hors-ligne : la publication est désactivée. Ton brouillon reste sur cet appareil.': 'Offline: posting is disabled. Your draft stays on this device.',
+  'Hors-ligne : cette action ne peut pas être envoyée. Réessaie quand la connexion revient.': 'Offline: this action cannot be sent. Try again when the connection is back.',
 
   // Erreurs de l’Entraide
   'Solde insuffisant. Choisis un palier plus petit ou utilise ta question gratuite.': 'Not enough points. Choose a smaller level or use your free question.',
@@ -215,8 +216,20 @@ const EN: Record<string, string> = {
   'Le lien GitHub doit commencer par https://github.com/.': 'The GitHub link must start with https://github.com/.',
   'Le titre doit contenir entre 5 et 300 caractères.': 'The title must be between 5 and 300 characters long.',
   'Décris ton blocage en quelques mots.': 'Describe what is blocking you in a few words.',
+  'La description doit contenir au moins 10 caractères pour expliquer ton blocage.': 'The description must contain at least 10 characters explaining what is blocking you.',
   'La description ne doit pas dépasser 10 000 caractères.': 'The description must not exceed 10,000 characters.',
   'Choisis au moins une technologie.': 'Choose at least one technology.',
+  'Choisis au moins une technologie, séparée par des virgules.': 'Choose at least one technology, separated by commas.',
+  'Le lien GitHub doit commencer par https://github.com/ et pointer vers une page.': 'The GitHub link must start with https://github.com/ and point to a page.',
+  'Chargement de tes points…': 'Loading your points…',
+  'Impossible de vérifier ton solde. Réessaie dans un instant.': 'Cannot check your balance. Try again in a moment.',
+  'Impossible de vérifier ta question gratuite. Réessaie dans un instant.': 'Cannot check your free question. Try again in a moment.',
+  'Solde insuffisant : il te faut 1 point et ta question gratuite est déjà utilisée cette semaine.': 'Not enough points: you need 1 point, and your free question is already used this week.',
+  'La publication est indisponible pour le moment. Réessaie dans un instant.': 'Posting is unavailable right now. Try again in a moment.',
+  'Indisponible': 'Unavailable',
+  'Au moins une technologie, séparée par des virgules.': 'At least one technology, separated by commas.',
+  'Choisis 1, 3 ou 6 points.': 'Choose 1, 3 or 6 points.',
+  'Facultatif : https://github.com/pseudo/depot': 'Optional: https://github.com/username/repository',
   'La question a été publiée, mais son fil n’est pas encore disponible. Recharge l’Entraide.': 'The question was published, but its thread is not available yet. Reload Help.',
   'Écris une réponse avant d’envoyer.': 'Write an answer before sending.',
   'La réponse ne doit pas dépasser 10 000 caractères.': 'The answer must not exceed 10,000 characters.',
@@ -224,12 +237,39 @@ const EN: Record<string, string> = {
   'Tu ne peux modifier que tes propres réponses.': 'You can only edit your own answers.',
   'Cette réponse a déjà été validée : elle ne peut plus être modifiée.': 'This answer has already been validated: it can no longer be edited.',
   'Écris une réponse avant d’enregistrer.': 'Write an answer before saving.',
+
+  // Mode invité
+  'Essayer sans compte': 'Try without an account',
+  'Mode invité': 'Guest mode',
+  "Le mode invité est indisponible pour l'instant, connecte-toi avec GitHub":
+    'Guest mode is unavailable right now. Sign in with GitHub instead.',
+  'Tu es en mode invité. Crée un compte GitHub pour garder tes points et publier un projet.':
+    'You are in guest mode. Create a GitHub account to keep your points and publish a project.',
+  'Se connecter avec GitHub': 'Sign in with GitHub',
+  'Tes données d’invité (points, questions et réponses) seront perdues. Continuer avec GitHub ?':
+    'Your guest data (points, questions and answers) will be lost. Continue with GitHub?',
+  'Les invités ne peuvent pas publier de projet. Crée un compte GitHub pour partager ton travail.':
+    'Guests cannot publish a project. Create a GitHub account to share your work.',
+  'Les invités ne peuvent pas dire « Ça m’a servi ». Crée un compte GitHub pour soutenir les projets.':
+    'Guests cannot say “This helped me”. Create a GitHub account to support projects.',
+  'Fermer la bannière': 'Close the banner',
+  'Chargement de l’écran': 'Loading screen',
+  "Oups, quelque chose s'est mal passé": 'Oops, something went wrong',
+  'Recharger': 'Reload',
+  'Recharge l’application pour continuer.': 'Reload the app to continue.',
 }
 
 const txt = new WeakMap<Node, { fr: string; en: string }>()
 const ATTRS = ['placeholder', 'aria-label', 'alt', 'title']
 const attrs = new WeakMap<Element, Record<string, { fr: string; en: string }>>()
-const tr = (fr: string) => { const k = fr.trim(); return lang === 'en' && EN[k] ? fr.replace(k, EN[k]) : fr }
+export function translate(fr: string): string {
+  const key = fr.trim()
+  return lang === 'en' && EN[key] ? EN[key] : fr
+}
+const tr = (fr: string) => {
+  const key = fr.trim()
+  return lang === 'en' && EN[key] ? fr.replace(key, EN[key]) : fr
+}
 let obs: MutationObserver | null = null
 
 function apply() {

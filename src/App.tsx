@@ -1,208 +1,92 @@
 import { LangToggle, useLang, type Lang } from './i18n'
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ClipboardEvent,
   type FormEvent,
-  type ReactNode,
 } from 'react'
 import {
-  addAnswer,
-  deleteAnswer,
-  getMyLedger,
   getProgress,
-  getQuestion,
-  isFreeQuestionAvailable,
   listProjects,
-  listQuestionTechnologies,
-  listQuestions,
   markProjectUsed,
-  postQuestion,
-  publishProject,
   toFrenchError,
-  updateAnswer,
-  updateMyProfile,
-  validateAnswer,
-  withdrawQuestion,
-  type Answer,
-  type LedgerEntry,
   type ProgressResult,
   type Project,
-  type PublishedProject,
-  type Question,
-  type QuestionTab,
-  type QuestionThread,
 } from './lib/api'
 import { useAuth } from './lib/auth'
+import {
+  BADGE_FAMILY_META,
+  COMMUNITY_META,
+  QUEST_META,
+  familyLabel,
+  tierName,
+} from './lib/badgeMeta'
+import {
+  PROGRESS_EVENT,
+  notifyProgressChanged,
+  type ProgressEventDetail,
+} from './lib/events'
 import { formatDateTime, formatRelativeDate } from './lib/format'
-import { fetchGithubRepo, GithubError, parseGithubRepoUrl, type GithubRepoPreview } from './lib/github'
+import { GUEST_USED_EXPLANATION } from './lib/guest'
 import {
-  formatTimeLeft,
-  isHelpTier,
-  pointsLabel,
-  statusLabel,
-  tierLabel,
-  type HelpTier,
-} from './lib/help'
-import {
-  BADGE_THRESHOLDS,
-  CHALLENGE_TARGET,
-  LEVELS,
   levelFor,
   type BadgeFamily,
   type BadgeTier,
   type CommunityBadgeId,
-  type CommunityBadgeProgress,
   type LevelDefinition,
   type ProgressSummary,
-  type QuestMissionId,
-  type SpecialtyProgress,
-  type TierBadgeProgress,
 } from './lib/progress'
 import { normalizeSearchText, searchProjects } from './lib/search'
+import { GuestBanner } from './components/GuestBanner'
+import {
+  AccountLangToggle,
+  Header,
+  Icon,
+  Primary,
+  ScreenSkeleton,
+  ThemeToggle,
+  initialsFor,
+} from './components/ui'
+import type { Screen } from './screens/types'
 
-type Screen =
-  | 'login'
-  | 'home'
-  | 'results'
-  | 'project'
-  | 'share'
-  | 'help'
-  | 'question'
-  | 'add'
-  | 'profile'
-  | 'how'
-  | 'states'
+const ShareProject = lazy(() =>
+  import('./screens/ShareProjectScreen').then((module) => ({
+    default: module.ShareProject,
+  })),
+)
+const Help = lazy(() =>
+  import('./screens/EntraideScreen').then((module) => ({
+    default: module.Help,
+  })),
+)
+const QuestionThread = lazy(() =>
+  import('./screens/EntraideScreen').then((module) => ({
+    default: module.QuestionThread,
+  })),
+)
+const Add = lazy(() =>
+  import('./screens/EntraideScreen').then((module) => ({
+    default: module.Add,
+  })),
+)
+const Profile = lazy(() =>
+  import('./screens/ProfileScreen').then((module) => ({
+    default: module.Profile,
+  })),
+)
+const HowItWorks = lazy(() =>
+  import('./screens/HowItWorksScreen').then((module) => ({
+    default: module.HowItWorks,
+  })),
+)
 
 const DATA_SAVER_KEY = 'bondev-data-saver'
 const TUTORIAL_KEY_PREFIX = 'bondev-tutorial'
 const SEEN_KEY_PREFIX = 'bondev-progress-seen'
-const PROGRESS_EVENT = 'bondev:progress-changed'
-
-type ProgressEventDetail = { celebration?: 'validated' }
-
-/** Prévient l'application qu'une action vient de changer la progression. */
-function notifyProgressChanged(detail?: ProgressEventDetail): void {
-  window.dispatchEvent(new CustomEvent(PROGRESS_EVENT, { detail }))
-}
-
-type BadgeFamilyMeta = {
-  label: { fr: string; en: string }
-  singular: { fr: string; en: string }
-  plural: { fr: string; en: string }
-  icon: string
-}
-
-const BADGE_FAMILY_META: Record<BadgeFamily, BadgeFamilyMeta> = {
-  help: {
-    label: { fr: 'Entraide', en: 'Helping' },
-    singular: { fr: 'réponse validée', en: 'validated answer' },
-    plural: { fr: 'réponses validées', en: 'validated answers' },
-    icon: 'handshake',
-  },
-  share: {
-    label: { fr: 'Partage', en: 'Sharing' },
-    singular: { fr: 'projet partagé', en: 'shared project' },
-    plural: { fr: 'projets partagés', en: 'shared projects' },
-    icon: 'code',
-  },
-  useful: {
-    label: { fr: 'Utilité', en: 'Usefulness' },
-    singular: { fr: '« Ça m’a servi » reçu', en: '“This helped me” received' },
-    plural: { fr: '« Ça m’a servi » reçus', en: '“This helped me” received' },
-    icon: 'star',
-  },
-  streak: {
-    label: { fr: 'Série', en: 'Streak' },
-    singular: { fr: 'semaine', en: 'week' },
-    plural: { fr: 'semaines', en: 'weeks' },
-    icon: 'flame',
-  },
-}
-
-const TIER_LABELS: Record<BadgeTier, { fr: string; en: string }> = {
-  bronze: { fr: 'Bronze', en: 'Bronze' },
-  silver: { fr: 'Argent', en: 'Silver' },
-  gold: { fr: 'Or', en: 'Gold' },
-}
-
-const COMMUNITY_META: Record<
-  CommunityBadgeId,
-  { title: { fr: string; en: string }; description: { fr: string; en: string }; icon: string }
-> = {
-  first_answer: {
-    title: { fr: 'Première réponse', en: 'First answer' },
-    description: {
-      fr: 'Tu as publié ta première réponse.',
-      en: 'You posted your first answer.',
-    },
-    icon: 'trophy',
-  },
-  new_voice: {
-    title: { fr: 'Nouvelle voix', en: 'New voice' },
-    description: {
-      fr: 'Tu as répondu à une question « débutant bienvenu ».',
-      en: 'You answered a “beginners welcome” question.',
-    },
-    icon: 'help',
-  },
-  kind: {
-    title: { fr: 'Bienveillant', en: 'Kind' },
-    description: {
-      fr: '3 réponses à des questions « débutant bienvenu ».',
-      en: '3 answers to “beginners welcome” questions.',
-    },
-    icon: 'handshake',
-  },
-}
-
-const QUEST_META: Record<
-  QuestMissionId,
-  { label: { fr: string; en: string }; icon: string }
-> = {
-  answer_beginner: {
-    label: {
-      fr: 'Répondre à une question débutant',
-      en: 'Answer a beginner question',
-    },
-    icon: 'help',
-  },
-  publish_project: {
-    label: { fr: 'Publier un projet', en: 'Publish a project' },
-    icon: 'code',
-  },
-  mark_useful: {
-    label: {
-      fr: 'Dire « Ça m’a servi »',
-      en: 'Say “This helped me”',
-    },
-    icon: 'star',
-  },
-}
-
-function familyLabel(family: BadgeFamily, lang: Lang): string {
-  return BADGE_FAMILY_META[family].label[lang]
-}
-
-function tierName(tier: BadgeTier, lang: Lang): string {
-  return TIER_LABELS[tier][lang]
-}
-
-function unitFor(
-  family: BadgeFamily,
-  count: number,
-  lang: Lang,
-): string {
-  const meta = BADGE_FAMILY_META[family]
-  return count === 1 ? meta.singular[lang] : meta.plural[lang]
-}
-
-function questLabel(id: QuestMissionId, lang: Lang): string {
-  return QUEST_META[id].label[lang]
-}
 
 type Celebration =
   | { key: string; kind: 'level'; level: LevelDefinition }
@@ -332,24 +216,6 @@ function writeSeenMilestones(userId: string, keys: string[]): void {
   }
 }
 
-function initialsFor(name: string, pseudo: string): string {
-  const source = (name.trim() || pseudo.trim()).replace(/\s+/g, ' ')
-  const parts = source.split(' ').filter(Boolean)
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-  }
-  return source.slice(0, 2).toUpperCase() || '?'
-}
-
-function formatLedgerDate(value: string, lang: Lang): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'fr-FR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date)
-}
 
 const EXAMPLE_PREFIX = '[Exemple]'
 
@@ -473,266 +339,7 @@ function saveProjectCache(projects: Project[], savedAt: number): void {
   }
 }
 
-function githubErrorMessage(cause: unknown): string {
-  if (cause instanceof GithubError) return cause.message
-  return 'Impossible de récupérer ce dépôt pour le moment. Remplis les champs à la main.'
-}
 
-function Icon({ name, size = 22 }: { name: string; size?: number }) {
-  const p: Record<string, ReactNode> = {
-    home: (
-      <>
-        <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
-        <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      </>
-    ),
-    help: <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />,
-    ask: (
-      <>
-        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-        <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
-        <path d="M12 17h.01" />
-      </>
-    ),
-    plus: <path d="M12 5v14M5 12h14" />,
-    user: (
-      <>
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21a8 8 0 0 1 16 0" />
-      </>
-    ),
-    search: (
-      <>
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-4-4" />
-      </>
-    ),
-    arrow: <path d="m9 18 6-6-6-6" />,
-    back: (
-      <>
-        <path d="m15 18-6-6 6-6" />
-        <path d="M9 12h11" />
-      </>
-    ),
-    github: (
-      <>
-        <path d="M15 22v-4a5 5 0 0 0-1-3.5c3.3-.4 6.8-1.6 6.8-7A5.5 5.5 0 0 0 19.3 4 5 5 0 0 0 19.2.5S18 0 15 2a13 13 0 0 0-7 0C5 .1 3.8.5 3.8.5A5 5 0 0 0 3.7 4a5.5 5.5 0 0 0-1.5 3.8c0 5.4 3.5 6.6 6.8 7a5 5 0 0 0-1 3.5v4" />
-        <path d="M8 19c-3 .9-3-1.5-4.2-2" />
-      </>
-    ),
-    wifi: (
-      <>
-        <path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0" />
-        <path d="m3 3 18 18" />
-        <path d="M12 20h.01" />
-      </>
-    ),
-    clock: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-      </>
-    ),
-    code: (
-      <>
-        <path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" />
-      </>
-    ),
-    trophy: (
-      <>
-        <path d="M8 4h8v5a4 4 0 0 1-8 0Z" />
-        <path d="M8 6H4v1a4 4 0 0 0 4 4M16 6h4v1a4 4 0 0 1-4 4M12 13v4M8 21h8M9 17h6" />
-      </>
-    ),
-    star: (
-      <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" />
-    ),
-    external: (
-      <>
-        <path d="M15 3h6v6M10 14 21 3" />
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      </>
-    ),
-    refresh: (
-      <>
-        <path d="M21 12a9 9 0 1 1-3-6.7" />
-        <path d="M21 3v6h-6" />
-      </>
-    ),
-    close: <path d="M18 6 6 18M6 6l12 12" />,
-    check: <path d="m5 12 4 4L19 6" />,
-    chevron: <path d="m6 9 6 6 6-6" />,
-    handshake: (
-      <>
-        <path d="m11 17 2 2a1 1 0 1 0 3-3" />
-        <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" />
-        <path d="m21 3 1 11h-2" />
-        <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" />
-        <path d="M3 4h8" />
-      </>
-    ),
-    mail: (
-      <>
-        <rect width="20" height="16" x="2" y="4" rx="2" />
-        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-      </>
-    ),
-    menu: <path d="M4 7h16M4 12h16M4 17h16" />,
-    sun: (
-      <>
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-      </>
-    ),
-    moon: (
-      <>
-        <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" />
-      </>
-    ),
-    flame: (
-      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" />
-    ),
-    book: (
-      <>
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
-      </>
-    ),
-    target: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <circle cx="12" cy="12" r="5" />
-        <circle cx="12" cy="12" r="1" />
-      </>
-    ),
-    lock: (
-      <>
-        <rect width="18" height="11" x="3" y="11" rx="2" />
-        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      </>
-    ),
-  }
-  return (
-    <svg
-      aria-hidden="true"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {p[name]}
-    </svg>
-  )
-}
-function ThemeToggle() {
-  const systemDark = () =>
-    window.matchMedia?.('(prefers-color-scheme: dark)').matches
-  const [dark, setDark] = useState(
-    () =>
-      localStorage.getItem('bondev-theme') === 'dark' ||
-      (!localStorage.getItem('bondev-theme') && systemDark()),
-  )
-  useEffect(() => {
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-    document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
-    localStorage.setItem('bondev-theme', dark ? 'dark' : 'light')
-  }, [dark])
-  return (
-    <button
-      className="theme-toggle"
-      onClick={() => setDark(!dark)}
-      aria-label={`Passer au thème ${dark ? 'clair' : 'sombre'}`}
-    >
-      <Icon name={dark ? 'sun' : 'moon'} size={18} />
-      <span>{dark ? 'Clair' : 'Sombre'}</span>
-    </button>
-  )
-}
-function Primary({
-  children,
-  onClick,
-  icon,
-  disabled = false,
-  type = 'button',
-}: {
-  children: ReactNode
-  onClick?: () => void
-  icon?: string
-  disabled?: boolean
-  type?: 'button' | 'submit'
-}) {
-  return (
-    <button
-      className="primary"
-      onClick={onClick}
-      disabled={disabled}
-      type={type}
-    >
-      {icon && <Icon name={icon} />} {children}
-    </button>
-  )
-}
-function Header({
-  title,
-  back,
-  logo = false,
-}: {
-  title?: string
-  back?: () => void
-  logo?: boolean
-}) {
-  const { stats } = useAuth()
-  const lang = useLang()
-  const balance = stats ? String(stats.balance) : '—'
-  return (
-    <header className="topbar">
-      {back ? (
-        <button className="iconbtn" onClick={back} aria-label="Retour">
-          <Icon name="back" />
-        </button>
-      ) : (
-        <span />
-      )}
-      {logo ? (
-        <div className="brand">
-          <img src="/assets/bondev-logo.png" alt="" />
-          <b>Bondev</b>
-        </div>
-      ) : title ? (
-        <h1>{title}</h1>
-      ) : (
-        <span />
-      )}
-      <div className="top-actions">
-        <button
-          className="points"
-          aria-label={
-            stats
-              ? undefined
-              : lang === 'en'
-                ? 'Points unavailable'
-                : 'Points indisponibles'
-          }
-          title={
-            stats
-              ? undefined
-              : lang === 'en'
-                ? 'Points unavailable'
-                : 'Points indisponibles'
-          }
-        >
-          <b>{balance}</b>
-          <span>pts</span>
-        </button>
-        <ThemeToggle />
-      </div>
-    </header>
-  )
-}
 function PointsCard() {
   const { stats, statsLoading, statsError, refreshStats } = useAuth()
   const lang = useLang()
@@ -769,28 +376,6 @@ function PointsCard() {
         </button>
       )}
     </section>
-  )
-}
-function AccountLangToggle({ compact = false }: { compact?: boolean }) {
-  const { user, refreshProfile } = useAuth()
-  const [error, setError] = useState<string | null>(null)
-  return (
-    <div className={`lang-save ${compact ? 'compact' : ''}`}>
-      <LangToggle
-        onChange={(next) => {
-          setError(null)
-          if (!user) return
-          updateMyProfile({ lang: next })
-            .then(() => refreshProfile())
-            .catch((cause: unknown) => setError(toFrenchError(cause)))
-        }}
-      />
-      {error && (
-        <small className="inline-error" role="status">
-          {error}
-        </small>
-      )}
-    </div>
   )
 }
 function Rising() {
@@ -1154,15 +739,25 @@ function CatalogueError({
   )
 }
 function Login() {
-  const { signInWithGitHub, signInWithGoogle, signInWithEmail } = useAuth()
+  const {
+    signInWithGitHub,
+    signInWithGoogle,
+    signInWithEmail,
+    signInAnonymously,
+    authNotice,
+    setAuthNotice,
+  } = useAuth()
   const [emailOpen, setEmailOpen] = useState(false)
   const [email, setEmail] = useState('')
-  const [busy, setBusy] = useState<'github' | 'google' | 'email' | null>(null)
+  const [busy, setBusy] = useState<
+    'github' | 'google' | 'email' | 'guest' | null
+  >(null)
   const [error, setError] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
 
   const handleGitHub = async () => {
     setError(null)
+    setAuthNotice(null)
     setBusy('github')
     const result = await signInWithGitHub()
     if (result.error) {
@@ -1173,6 +768,7 @@ function Login() {
 
   const handleGoogle = async () => {
     setError(null)
+    setAuthNotice(null)
     setBusy('google')
     const result = await signInWithGoogle()
     if (result.error) {
@@ -1184,6 +780,7 @@ function Login() {
   const handleEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(null)
+    setAuthNotice(null)
     setBusy('email')
     const result = await signInWithEmail(email)
     if (result.error) {
@@ -1195,6 +792,17 @@ function Login() {
     setSent(true)
   }
 
+  const handleGuest = async () => {
+    setError(null)
+    setAuthNotice(null)
+    setBusy('guest')
+    const result = await signInAnonymously()
+    if (result.error) {
+      setError(result.error)
+      setBusy(null)
+    }
+  }
+
   return (
     <main className="login">
       <div className="login-theme">
@@ -1203,7 +811,11 @@ function Login() {
       </div>
       <section className="login-brand">
         <img
-          src="/assets/bondev-logo.png"
+          src="/assets/bondev-logo-192.webp"
+          srcSet="/assets/bondev-logo-192.webp 192w, /assets/bondev-logo-384.webp 384w"
+          sizes="164px"
+          width={192}
+          height={192}
           alt="Logo Bondev, deux personnes qui s'entraident"
         />
         <h1>Bondev</h1>
@@ -1303,9 +915,18 @@ function Login() {
             Utiliser mon email
           </button>
         )}
-        {error && (
+        <button
+          className="email-btn guest-login-btn"
+          onClick={() => void handleGuest()}
+          disabled={busy !== null}
+          type="button"
+        >
+          <Icon name="user" />
+          Essayer sans compte
+        </button>
+        {(error || authNotice) && (
           <p className="login-error" role="alert">
-            {error}
+            {error ?? authNotice}
           </p>
         )}
         {!sent && <small>Trouve. Partage. Avance.</small>}
@@ -1891,18 +1512,20 @@ function ProjectDetail({
   onRetry: () => void
   onUsed: (projectId: string) => void
 }) {
-  const { user } = useAuth()
+  const { user, isGuest } = useAuth()
   const lang = useLang()
   const [busy, setBusy] = useState(false)
   const [used, setUsed] = useState(false)
   const [celebration, setCelebration] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [guestNotice, setGuestNotice] = useState(false)
   const projectId = project?.id
 
   useEffect(() => {
     setUsed(false)
     setCelebration(false)
     setActionError(null)
+    setGuestNotice(false)
   }, [projectId])
 
   useEffect(() => {
@@ -1959,6 +1582,11 @@ function ProjectDetail({
     : ''
 
   const handleUsed = async () => {
+    if (isGuest) {
+      // Le bouton reste visible : on explique la règle sans appeler l'API.
+      setGuestNotice(true)
+      return
+    }
     if (!canUse) return
     setBusy(true)
     setActionError(null)
@@ -2107,6 +1735,11 @@ function ProjectDetail({
             </button>
           </div>
 
+          {isGuest && guestNotice && (
+            <p className="disabled-reason guest-reason" role="status">
+              {GUEST_USED_EXPLANATION}
+            </p>
+          )}
           {!connected && (
             <p className="disabled-reason">
               {lang === 'en'
@@ -2152,1753 +1785,8 @@ function ProjectDetail({
   )
 }
 
-function ShareProject({
-  go,
-  onPublished,
-}: {
-  go: (screen: Screen) => void
-  onPublished: () => void
-}) {
-  const lang = useLang()
-  const { refreshStats } = useAuth()
-  const [repoUrl, setRepoUrl] = useState('')
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [technologies, setTechnologies] = useState('')
-  const [license, setLicense] = useState('')
-  const [tags, setTags] = useState('')
-  const [preview, setPreview] = useState<GithubRepoPreview | null>(null)
-  const [fetchedUrl, setFetchedUrl] = useState<string | null>(null)
-  const [fetching, setFetching] = useState(false)
-  const [fetchError, setFetchError] = useState<string | null>(null)
-  const [publishing, setPublishing] = useState(false)
-  const [publishError, setPublishError] = useState<string | null>(null)
-  const [published, setPublished] = useState<PublishedProject | null>(null)
 
-  const loadRepo = async (value: string) => {
-    const ref = parseGithubRepoUrl(value)
-    if (!ref) {
-      setFetchError(
-        'Lien GitHub invalide. Utilise le format https://github.com/pseudo/depot.',
-      )
-      setPreview(null)
-      setFetchedUrl(null)
-      return
-    }
 
-    setRepoUrl(ref.canonicalUrl)
-    setFetching(true)
-    setFetchError(null)
-    try {
-      const info = await fetchGithubRepo(ref.canonicalUrl)
-      setPreview(info)
-      setFetchedUrl(ref.canonicalUrl)
-      setTitle(info.title)
-      setDescription(info.description)
-      setTechnologies(info.technologies.join(', '))
-      setLicense(info.license)
-      setTags(info.tags.join(', '))
-    } catch (cause) {
-      setPreview(null)
-      setFetchedUrl(null)
-      setFetchError(githubErrorMessage(cause))
-    } finally {
-      setFetching(false)
-    }
-  }
-
-  const handleRepoChange = (value: string) => {
-    setRepoUrl(value)
-    setFetchError(null)
-    if (fetchedUrl && value.trim() !== fetchedUrl) {
-      setFetchedUrl(null)
-      setPreview(null)
-    }
-  }
-
-  const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
-    const pasted = event.clipboardData.getData('text').trim()
-    const ref = parseGithubRepoUrl(pasted)
-    if (!ref) return
-    event.preventDefault()
-    setRepoUrl(ref.canonicalUrl)
-    void loadRepo(ref.canonicalUrl)
-  }
-
-  const handleBlur = () => {
-    if (!repoUrl.trim() || fetchedUrl || fetching) return
-    void loadRepo(repoUrl)
-  }
-
-  const splitList = (value: string): string[] =>
-    value
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean)
-
-  const handlePublish = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setPublishError(null)
-
-    const ref = parseGithubRepoUrl(repoUrl)
-    if (!ref) {
-      setPublishError(
-        'Lien GitHub invalide. Utilise le format https://github.com/pseudo/depot.',
-      )
-      return
-    }
-
-    setPublishing(true)
-    try {
-      const result = await publishProject({
-        title,
-        description,
-        repoUrl: ref.canonicalUrl,
-        license,
-        technologies: splitList(technologies),
-        tags: splitList(tags),
-      })
-      setPublished(result)
-      await refreshStats().catch(() => undefined)
-      notifyProgressChanged()
-      onPublished()
-    } catch (cause) {
-      setPublishError(toFrenchError(cause))
-    } finally {
-      setPublishing(false)
-    }
-  }
-
-  if (published) {
-    return (
-      <main className="screen centered">
-        <div className="success">
-          <Icon name="check" size={38} />
-        </div>
-        <h1>{lang === 'en' ? 'Project published!' : 'Projet publié !'}</h1>
-        <p>
-          {published.pointsEarned > 0
-            ? lang === 'en'
-              ? `Your project is now in the catalogue. You earned +${published.pointsEarned} points.`
-              : `Ton projet est maintenant dans le catalogue. Tu gagnes +${published.pointsEarned} points.`
-            : lang === 'en'
-              ? 'Your project is now in the catalogue. You have already received the points for your first five publications.'
-              : 'Ton projet est maintenant dans le catalogue. Tu as déjà reçu les points de tes 5 premières publications.'}
-        </p>
-        <Primary onClick={() => go('results')}>
-          {lang === 'en' ? 'See the catalogue' : 'Voir le catalogue'}
-        </Primary>
-        <button className="textbtn" onClick={() => go('home')} type="button">
-          {lang === 'en' ? 'Back home' : 'Retour à l’accueil'}
-        </button>
-      </main>
-    )
-  }
-
-  return (
-    <main className="screen">
-      <Header
-        title={lang === 'en' ? 'Share a project' : 'Partager un projet'}
-        back={() => go('home')}
-      />
-      <form className="form share-form" onSubmit={handlePublish}>
-        <p className="eyebrow">
-          {lang === 'en' ? 'A public repository is enough' : 'Un dépôt public suffit'}
-        </p>
-        <h2>{lang === 'en' ? 'Present your project' : 'Présente ton projet'}</h2>
-
-        <label>
-          <span>{lang === 'en' ? 'GitHub link' : 'Lien GitHub'}</span>
-          <div className="repo-row">
-            <input
-              className="text-input"
-              value={repoUrl}
-              onChange={(event) => handleRepoChange(event.target.value)}
-              onPaste={handlePaste}
-              onBlur={handleBlur}
-              placeholder="https://github.com/ton-pseudo/ton-projet"
-              autoComplete="url"
-              inputMode="url"
-            />
-            <button
-              className="secondary"
-              type="button"
-              onClick={() => void loadRepo(repoUrl)}
-              disabled={fetching || !repoUrl.trim()}
-            >
-              <Icon name="github" size={18} />{' '}
-              {fetching
-                ? lang === 'en'
-                  ? 'Loading…'
-                  : 'Récupération…'
-                : lang === 'en'
-                  ? 'Fill from GitHub'
-                  : 'Remplir depuis GitHub'}
-            </button>
-          </div>
-          {fetchError && (
-            <small className="inline-error repo-error" role="status">
-              {fetchError}
-            </small>
-          )}
-          {preview?.lastActivity && (
-            <small className="github-note">
-              {lang === 'en' ? 'GitHub last activity:' : 'Dernière activité sur GitHub :'}{' '}
-              {formatRelativeDate(preview.lastActivity, lang)}
-            </small>
-          )}
-        </label>
-
-        <label>
-          <span>{lang === 'en' ? 'Project title' : 'Titre du projet'}</span>
-          <input
-            className="text-input"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Ex. Gestion de stock pour petites boutiques"
-            maxLength={200}
-          />
-        </label>
-
-        <label>
-          <span>{lang === 'en' ? 'Description' : 'Description'}</span>
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder={
-              lang === 'en'
-                ? 'Explain what the project does and who it helps.'
-                : 'Explique ce que fait le projet et à qui il sert.'
-            }
-            maxLength={5000}
-          />
-        </label>
-
-        <label>
-          <span>
-            {lang === 'en'
-              ? 'Technologies (comma-separated)'
-              : 'Technologies (séparées par des virgules)'}
-          </span>
-          <input
-            className="text-input"
-            value={technologies}
-            onChange={(event) => setTechnologies(event.target.value)}
-            placeholder="React, Node.js, PostgreSQL"
-          />
-        </label>
-
-        <label>
-          <span>{lang === 'en' ? 'Licence' : 'Licence'}</span>
-          <input
-            className="text-input"
-            value={license}
-            onChange={(event) => setLicense(event.target.value)}
-            placeholder="MIT, Apache-2.0, GPL-3.0…"
-            maxLength={40}
-          />
-        </label>
-
-        <label>
-          <span>
-            {lang === 'en'
-              ? 'Tags (comma-separated)'
-              : 'Tags (séparés par des virgules)'}
-          </span>
-          <input
-            className="text-input"
-            value={tags}
-            onChange={(event) => setTags(event.target.value)}
-            placeholder="Mobile Money, hors-ligne, SMS"
-          />
-        </label>
-
-        <p className="form-note">
-          {lang === 'en'
-            ? 'The fields filled from GitHub stay editable.'
-            : 'Les champs remplis depuis GitHub restent modifiables.'}
-        </p>
-
-        {publishError && (
-          <p className="inline-error form-error" role="alert">
-            {publishError}
-          </p>
-        )}
-
-        <Primary type="submit" disabled={publishing}>
-          {publishing
-            ? lang === 'en'
-              ? 'Publishing…'
-              : 'Publication…'
-            : lang === 'en'
-              ? 'Publish project'
-              : 'Publier le projet'}
-        </Primary>
-      </form>
-    </main>
-  )
-}
-
-const QUESTION_DRAFT_PREFIX = 'bondev-question-draft-v1'
-const ANSWER_DRAFT_PREFIX = 'bondev-answer-draft-v1'
-
-type QuestionDraft = {
-  title: string
-  body: string
-  technologies: string
-  tier: HelpTier
-  githubUrl: string
-  beginnerOk: boolean
-}
-
-type AnswerDraft = {
-  body: string
-  proofUrl: string
-}
-
-const EMPTY_QUESTION_DRAFT: QuestionDraft = {
-  title: '',
-  body: '',
-  technologies: '',
-  tier: 1,
-  githubUrl: '',
-  beginnerOk: false,
-}
-
-function readQuestionDraft(key: string): QuestionDraft {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return EMPTY_QUESTION_DRAFT
-    const parsed: unknown = JSON.parse(raw)
-    if (!isRecord(parsed)) return EMPTY_QUESTION_DRAFT
-    const tier = Number(parsed.tier)
-    return {
-      title: typeof parsed.title === 'string' ? parsed.title : '',
-      body: typeof parsed.body === 'string' ? parsed.body : '',
-      technologies:
-        typeof parsed.technologies === 'string' ? parsed.technologies : '',
-      tier: isHelpTier(tier) ? tier : 1,
-      githubUrl: typeof parsed.githubUrl === 'string' ? parsed.githubUrl : '',
-      beginnerOk: parsed.beginnerOk === true,
-    }
-  } catch {
-    return EMPTY_QUESTION_DRAFT
-  }
-}
-
-function readAnswerDraft(key: string): AnswerDraft {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return { body: '', proofUrl: '' }
-    const parsed: unknown = JSON.parse(raw)
-    if (!isRecord(parsed)) return { body: '', proofUrl: '' }
-    return {
-      body: typeof parsed.body === 'string' ? parsed.body : '',
-      proofUrl: typeof parsed.proofUrl === 'string' ? parsed.proofUrl : '',
-    }
-  } catch {
-    return { body: '', proofUrl: '' }
-  }
-}
-
-function writeDraft(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    /* Le brouillon est un confort : le formulaire reste utilisable sans lui. */
-  }
-}
-
-function clearDraft(key: string): void {
-  try {
-    localStorage.removeItem(key)
-  } catch {
-    /* Rien à faire si le stockage local est indisponible. */
-  }
-}
-
-function useOnline(): boolean {
-  const [online, setOnline] = useState(() => navigator.onLine)
-  useEffect(() => {
-    const goOnline = () => setOnline(true)
-    const goOffline = () => setOnline(false)
-    window.addEventListener('online', goOnline)
-    window.addEventListener('offline', goOffline)
-    return () => {
-      window.removeEventListener('online', goOnline)
-      window.removeEventListener('offline', goOffline)
-    }
-  }, [])
-  return online
-}
-
-function answerCountLabel(count: number, lang: Lang): string {
-  if (lang === 'en') {
-    return `${count} ${count === 1 ? 'answer' : 'answers'}`
-  }
-  return `${count} ${count === 1 ? 'réponse' : 'réponses'}`
-}
-
-function HelpAvatar({
-  author,
-  size = 'normal',
-}: {
-  author: { pseudo: string; display_name: string; avatar_url: string }
-  size?: 'normal' | 'small'
-}) {
-  const name = author.display_name.trim() || author.pseudo
-  const avatar = author.avatar_url.startsWith('https://')
-    ? author.avatar_url
-    : ''
-  return (
-    <span className={`help-avatar ${size === 'small' ? 'small' : ''}`}>
-      {avatar ? <img src={avatar} alt="" /> : initialsFor(name, author.pseudo)}
-    </span>
-  )
-}
-
-function QuestionSkeleton() {
-  return (
-    <article className="glass request question-card skeleton-question" aria-hidden="true">
-      <span className="skeleton-line short" />
-      <span className="skeleton-line wide" />
-      <span className="skeleton-line" />
-      <span className="skeleton-line short" />
-    </article>
-  )
-}
-
-function Help({ go, openQuestion }: { go: (s: Screen) => void; openQuestion: (id: string) => void }) {
-  const lang = useLang()
-  const { user } = useAuth()
-  const userId = user?.id
-  const [tab, setTab] = useState<QuestionTab>('open')
-  const [beginnerOnly, setBeginnerOnly] = useState(false)
-  const [technology, setTechnology] = useState('')
-  const [questions, setQuestions] = useState<Question[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [technologies, setTechnologies] = useState<string[]>([])
-  const [reload, setReload] = useState(0)
-
-  useEffect(() => {
-    let active = true
-    setQuestions(null)
-    setError(null)
-    listQuestions({
-      tab,
-      beginnerOnly,
-      technology: technology || undefined,
-    })
-      .then((list) => {
-        if (active) setQuestions(list)
-      })
-      .catch((cause: unknown) => {
-        if (active) {
-          setQuestions([])
-          setError(toFrenchError(cause))
-        }
-      })
-    return () => {
-      active = false
-    }
-  }, [tab, beginnerOnly, technology, userId, reload])
-
-  useEffect(() => {
-    let active = true
-    listQuestionTechnologies()
-      .then((list) => {
-        if (active) setTechnologies(list)
-      })
-      .catch(() => {
-        /* Le filtre technologie reste optionnel si la lecture échoue. */
-      })
-    return () => {
-      active = false
-    }
-  }, [reload])
-
-  const tabs: { id: QuestionTab; fr: string; en: string }[] = [
-    { id: 'open', fr: 'Ouvertes', en: 'Open' },
-    { id: 'resolved', fr: 'Résolues', en: 'Solved' },
-    { id: 'mine', fr: 'Mes questions', en: 'My questions' },
-  ]
-
-  const emptyTitle =
-    tab === 'mine'
-      ? lang === 'en'
-        ? 'You have not asked a question yet'
-        : 'Tu n’as pas encore posé de question'
-      : tab === 'resolved'
-        ? lang === 'en'
-          ? 'No solved questions yet'
-          : 'Aucune question résolue pour le moment'
-        : lang === 'en'
-          ? 'No open questions right now'
-          : 'Aucune question ouverte pour le moment'
-
-  const emptyText =
-    tab === 'mine'
-      ? lang === 'en'
-        ? 'Ask for help: the community can unblock you.'
-        : 'Demande de l’aide : la communauté peut te débloquer.'
-      : tab === 'resolved'
-        ? lang === 'en'
-          ? 'As soon as an answer is validated, it will appear here.'
-          : 'Dès qu’une réponse est validée, elle apparaîtra ici.'
-        : lang === 'en'
-          ? 'Be the first to ask, or come back soon to help someone.'
-          : 'Sois le premier à demander, ou reviens bientôt aider quelqu’un.'
-
-  return (
-    <main className="screen">
-      <Header title="Entraide" />
-      <div className="help-heading">
-        <div>
-          <p className="eyebrow">La communauté</p>
-          <h2>{lang === 'en' ? 'Community questions' : 'Les questions de la communauté'}</h2>
-        </div>
-        <Primary onClick={() => go('add')} icon="plus">
-          Poser ma question
-        </Primary>
-      </div>
-
-      <div className="help-tabs" role="tablist" aria-label={lang === 'en' ? 'Question filters' : 'Filtres des questions'}>
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.id}
-            className={tab === item.id ? 'active' : ''}
-            onClick={() => setTab(item.id)}
-          >
-            {lang === 'en' ? item.en : item.fr}
-          </button>
-        ))}
-      </div>
-
-      <div className="help-filters">
-        <button
-          type="button"
-          className={`filter-chip ${beginnerOnly ? 'active' : ''}`}
-          aria-pressed={beginnerOnly}
-          onClick={() => setBeginnerOnly((value) => !value)}
-        >
-          {lang === 'en' ? 'Beginners welcome' : 'Débutant bienvenu'}
-        </button>
-        <label className="help-tech-select">
-          <span>{lang === 'en' ? 'Technology' : 'Technologie'}</span>
-          <select
-            value={technology}
-            onChange={(event) => setTechnology(event.target.value)}
-          >
-            <option value="">
-              {lang === 'en' ? 'All technologies' : 'Toutes les technologies'}
-            </option>
-            {technologies.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {error ? (
-        <section className="glass help-state" role="alert">
-          <div>
-            <Icon name="wifi" size={28} />
-          </div>
-          <h2>{lang === 'en' ? 'The questions are unavailable' : 'Les questions sont indisponibles'}</h2>
-          <p>{error}</p>
-          <button className="secondary help-retry" onClick={() => setReload((value) => value + 1)}>
-            {lang === 'en' ? 'Try again' : 'Réessayer'}
-          </button>
-        </section>
-      ) : questions === null ? (
-        <section className="list question-list" aria-busy="true" aria-live="polite">
-          {[0, 1, 2].map((item) => (
-            <QuestionSkeleton key={item} />
-          ))}
-        </section>
-      ) : questions.length === 0 ? (
-        <section className="glass empty help-empty">
-          <div>
-            <Icon name="handshake" size={30} />
-          </div>
-          <h2>{emptyTitle}</h2>
-          <p>{emptyText}</p>
-          {tab === 'mine' && (
-            <Primary onClick={() => go('add')} icon="plus">
-              Poser ma question
-            </Primary>
-          )}
-        </section>
-      ) : (
-        <section className="list question-list">
-          {questions.map((question) => (
-            <button
-              className="glass request question-card"
-              key={question.id}
-              type="button"
-              onClick={() => openQuestion(question.id)}
-            >
-              <div className="question-card-top">
-                <span className={`status-pill ${question.status}`}>
-                  {statusLabel(question.status, lang)}
-                </span>
-                <span className="tier-pill">
-                  {tierLabel(question.tier, lang)} · {pointsLabel(question.tier, lang)}
-                </span>
-              </div>
-              <div className="question-card-tags">
-                {question.beginner_ok && (
-                  <span className="mentor-tag">
-                    {lang === 'en'
-                      ? 'Beginners welcome · +1 mentor bonus'
-                      : 'Débutant bienvenu · +1 bonus mentor'}
-                  </span>
-                )}
-                {question.is_free && (
-                  <span className="free-pill">
-                    {lang === 'en' ? 'Free question' : 'Question gratuite'}
-                  </span>
-                )}
-              </div>
-              <h3>{question.title}</h3>
-              <p>
-                {question.technologies.slice(0, 3).join(' · ') ||
-                  (lang === 'en' ? 'No technology specified' : 'Technologie non précisée')}
-              </p>
-              <div className="question-meta">
-                <span>{answerCountLabel(question.answer_count, lang)}</span>
-                {question.status === 'open' && (
-                  <span>{formatTimeLeft(question.expires_at, lang)}</span>
-                )}
-                <span>@{question.author.pseudo}</span>
-              </div>
-              <span className="help-link">
-                {lang === 'en' ? 'View question' : 'Voir la question'} <Icon name="arrow" size={18} />
-              </span>
-            </button>
-          ))}
-        </section>
-      )}
-    </main>
-  )
-}
-
-function QuestionThread({
-  questionId,
-  back,
-}: {
-  questionId: string
-  back: () => void
-}) {
-  const lang = useLang()
-  const online = useOnline()
-  const { user, refreshStats } = useAuth()
-  const [thread, setThread] = useState<QuestionThread | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [reload, setReload] = useState(0)
-  const [busy, setBusy] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editBody, setEditBody] = useState('')
-  const [editProof, setEditProof] = useState('')
-  const draftKey = user
-    ? `${ANSWER_DRAFT_PREFIX}:${questionId}:${user.id}`
-    : ''
-  const [initialDraft] = useState<AnswerDraft>(() =>
-    draftKey ? readAnswerDraft(draftKey) : { body: '', proofUrl: '' },
-  )
-  const [answerBody, setAnswerBody] = useState(initialDraft.body)
-  const [answerProof, setAnswerProof] = useState(initialDraft.proofUrl)
-
-  useEffect(() => {
-    let active = true
-    setError(null)
-    getQuestion(questionId)
-      .then((value) => {
-        if (active) setThread(value)
-      })
-      .catch((cause: unknown) => {
-        if (active) setError(toFrenchError(cause))
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [questionId, reload])
-
-  useEffect(() => {
-    if (!draftKey) return
-    if (!answerBody.trim() && !answerProof.trim()) {
-      clearDraft(draftKey)
-      return
-    }
-    writeDraft(draftKey, { body: answerBody, proofUrl: answerProof })
-  }, [draftKey, answerBody, answerProof])
-
-  const question = thread?.question ?? null
-  const answers = thread?.answers ?? []
-  const isAuthor = Boolean(user && question && user.id === question.author_id)
-
-  const refresh = () => setReload((value) => value + 1)
-
-  const handleValidate = async (answer: Answer) => {
-    if (!question || busy || !online) return
-    const pseudo = answer.author.pseudo
-    const amount = pointsLabel(question.tier, lang)
-    const confirmation =
-      lang === 'en'
-        ? `This will give ${amount} to @${pseudo}. Continue?`
-        : `Cela donnera ${amount} à @${pseudo}. Continuer ?`
-    if (!window.confirm(confirmation)) return
-
-    setBusy(true)
-    setActionError(null)
-    setNotice(null)
-    try {
-      await validateAnswer(answer.id)
-      await refreshStats()
-      notifyProgressChanged({ celebration: 'validated' })
-      setNotice(
-        lang === 'en'
-          ? `Thank you! ${amount} transferred to @${pseudo}.`
-          : `Merci ! ${amount} transféré${question.tier > 1 ? 's' : ''} à @${pseudo}.`,
-      )
-      refresh()
-    } catch (cause: unknown) {
-      setActionError(toFrenchError(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handleWithdraw = async () => {
-    if (!question || busy || !online) return
-    const refund = question.is_free
-      ? lang === 'en'
-        ? 'This free question will be withdrawn.'
-        : 'Cette question gratuite sera retirée.'
-      : lang === 'en'
-        ? `${pointsLabel(question.tier, lang)} will be refunded to you.`
-        : `${pointsLabel(question.tier, lang)} te seront remboursés.`
-    const confirmation =
-      lang === 'en'
-        ? `Withdraw this question? ${refund}`
-        : `Retirer cette question ? ${refund}`
-    if (!window.confirm(confirmation)) return
-
-    setBusy(true)
-    setActionError(null)
-    setNotice(null)
-    try {
-      await withdrawQuestion(question.id)
-      await refreshStats()
-      notifyProgressChanged()
-      setNotice(
-        question.is_free
-          ? lang === 'en'
-            ? 'Question withdrawn. No points were debited.'
-            : 'Question retirée. Aucun point n’avait été débité.'
-          : lang === 'en'
-            ? `Question withdrawn. ${pointsLabel(question.tier, lang)} refunded to you.`
-            : `Question retirée. ${pointsLabel(question.tier, lang)} te sont remboursés.`,
-      )
-      refresh()
-    } catch (cause: unknown) {
-      setActionError(toFrenchError(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const submitAnswer = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!question || busy || !online) return
-    setBusy(true)
-    setActionError(null)
-    setNotice(null)
-    try {
-      await addAnswer(question.id, answerBody, answerProof)
-      if (draftKey) clearDraft(draftKey)
-      setAnswerBody('')
-      setAnswerProof('')
-      notifyProgressChanged()
-      setNotice(lang === 'en' ? 'Your answer has been sent.' : 'Ta réponse a bien été envoyée.')
-      refresh()
-    } catch (cause: unknown) {
-      setActionError(toFrenchError(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const startEdit = (answer: Answer) => {
-    setEditingId(answer.id)
-    setEditBody(answer.body)
-    setEditProof(answer.proof_url)
-    setActionError(null)
-    setNotice(null)
-  }
-
-  const saveEdit = async (event: FormEvent, answer: Answer) => {
-    event.preventDefault()
-    if (busy || !online) return
-    setBusy(true)
-    setActionError(null)
-    setNotice(null)
-    try {
-      await updateAnswer(answer.id, editBody, editProof)
-      setEditingId(null)
-      setNotice(lang === 'en' ? 'Your answer has been updated.' : 'Ta réponse a été modifiée.')
-      refresh()
-    } catch (cause: unknown) {
-      setActionError(toFrenchError(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const removeAnswer = async (answer: Answer) => {
-    if (busy || !online) return
-    const confirmation =
-      lang === 'en'
-        ? 'Delete this answer? This cannot be undone.'
-        : 'Supprimer cette réponse ? Cette action est définitive.'
-    if (!window.confirm(confirmation)) return
-    setBusy(true)
-    setActionError(null)
-    setNotice(null)
-    try {
-      await deleteAnswer(answer.id)
-      if (editingId === answer.id) setEditingId(null)
-      notifyProgressChanged()
-      setNotice(lang === 'en' ? 'Your answer has been deleted.' : 'Ta réponse a été supprimée.')
-      refresh()
-    } catch (cause: unknown) {
-      setActionError(toFrenchError(cause))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (loading && !thread) {
-    return (
-      <main className="screen">
-        <Header title="Entraide" back={back} />
-        <section className="list question-list" aria-busy="true" aria-live="polite">
-          <QuestionSkeleton />
-          <QuestionSkeleton />
-        </section>
-      </main>
-    )
-  }
-
-  if (error && !thread) {
-    return (
-      <main className="screen">
-        <Header title="Entraide" back={back} />
-        <section className="glass help-state" role="alert">
-          <div>
-            <Icon name="wifi" size={28} />
-          </div>
-          <h2>{lang === 'en' ? 'This question is unavailable' : 'Cette question est indisponible'}</h2>
-          <p>{error}</p>
-          <button className="secondary help-retry" onClick={() => setReload((value) => value + 1)}>
-            {lang === 'en' ? 'Try again' : 'Réessayer'}
-          </button>
-        </section>
-      </main>
-    )
-  }
-
-  if (!question) {
-    return (
-      <main className="screen">
-        <Header title="Entraide" back={back} />
-        <section className="glass empty help-empty">
-          <h2>{lang === 'en' ? 'Question not found' : 'Question introuvable'}</h2>
-          <p>{lang === 'en' ? 'It may have been withdrawn or deleted.' : 'Elle a peut-être été retirée ou supprimée.'}</p>
-        </section>
-      </main>
-    )
-  }
-
-  const validatedAnswer = answers.find((answer) => answer.is_useful) ?? null
-  const canAnswer = Boolean(user) && !isAuthor && question.status === 'open'
-  const showOfflineNote = !online
-
-  return (
-    <main className="screen">
-      <Header title="Entraide" back={back} />
-
-      <section className="glass question-detail thread-question">
-        <div className="question-card-top">
-          <span className={`status-pill ${question.status}`}>
-            {statusLabel(question.status, lang)}
-          </span>
-          <span className="tier-pill">
-            {tierLabel(question.tier, lang)} · {pointsLabel(question.tier, lang)}
-          </span>
-        </div>
-        <div className="question-card-tags">
-          {question.beginner_ok && (
-            <span className="mentor-tag">
-              {lang === 'en'
-                ? 'Beginners welcome · +1 mentor bonus'
-                : 'Débutant bienvenu · +1 bonus mentor'}
-            </span>
-          )}
-          {question.is_free && (
-            <span className="free-pill">
-              {lang === 'en' ? 'Free question' : 'Question gratuite'}
-            </span>
-          )}
-        </div>
-        <h2>{question.title}</h2>
-        <div className="author-line thread-author">
-          <HelpAvatar author={question.author} />
-          <p>
-            <b>{question.author.display_name || question.author.pseudo}</b>
-            <small>@{question.author.pseudo}</small>
-          </p>
-        </div>
-        <div className="thread-body">{question.body}</div>
-        {question.github_url.startsWith('https://') && (
-          <a
-            className="thread-github"
-            href={question.github_url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Icon name="github" size={18} />
-            {lang === 'en' ? 'View the GitHub link' : 'Voir le lien GitHub'}
-            <Icon name="external" size={15} />
-          </a>
-        )}
-        <div className="question-meta thread-meta">
-          <span>{answerCountLabel(question.answer_count, lang)}</span>
-          {question.status === 'open' && (
-            <span>{formatTimeLeft(question.expires_at, lang)}</span>
-          )}
-          <span>{question.technologies.join(' · ')}</span>
-        </div>
-
-        {question.status === 'expired' && (
-          <div className="help-notice animated">
-            {lang === 'en'
-              ? 'This question has expired. Any held points were returned to its author, and new answers are closed.'
-              : 'Cette question a expiré. Les points mis de côté ont été rendus à son auteur et les nouvelles réponses sont fermées.'}
-          </div>
-        )}
-        {question.status === 'withdrawn' && (
-          <div className="help-notice animated">
-            {lang === 'en'
-              ? 'This question was withdrawn by its author. New answers are closed.'
-              : 'Cette question a été retirée par son auteur. Les nouvelles réponses sont fermées.'}
-          </div>
-        )}
-        {question.status === 'resolved' && validatedAnswer && (
-          <div className="help-notice success animated">
-            {lang === 'en'
-              ? `Solved by @${validatedAnswer.author.pseudo}. The validated answer is highlighted below.`
-              : `Résolue grâce à @${validatedAnswer.author.pseudo}. La réponse validée est mise en avant ci-dessous.`}
-          </div>
-        )}
-
-        {isAuthor && question.status === 'open' && (
-          <div className="thread-actions">
-            <button
-              className="secondary withdraw-btn"
-              type="button"
-              disabled={busy || !online}
-              onClick={() => void handleWithdraw()}
-            >
-              {busy
-                ? lang === 'en'
-                  ? 'Working…'
-                  : 'Traitement…'
-                : lang === 'en'
-                  ? 'Withdraw my question'
-                  : 'Retirer ma question'}
-            </button>
-          </div>
-        )}
-      </section>
-
-      {notice && (
-        <div className="glass thanks help-feedback" role="status">
-          {notice}
-        </div>
-      )}
-      {actionError && (
-        <div className="inline-error form-error help-feedback" role="alert">
-          {actionError}
-        </div>
-      )}
-
-      <div className="answer-title thread-answer-title">
-        <h3>{answerCountLabel(answers.length, lang)}</h3>
-        <span>{lang === 'en' ? 'Validated answer first' : 'Réponse validée d’abord'}</span>
-      </div>
-
-      {answers.length === 0 ? (
-        <p className="help-empty-line">
-          {lang === 'en' ? 'No answers yet. Your help could unblock this question.' : 'Pas encore de réponse. Ton aide peut débloquer cette question.'}
-        </p>
-      ) : (
-        <section className="thread-answers">
-          {answers.map((answer) => {
-            const ownAnswer = user?.id === answer.author_id
-            const canValidate =
-              isAuthor &&
-              question.status === 'open' &&
-              !answer.is_useful &&
-              !ownAnswer
-            return (
-              <article
-                className={`answer thread-answer ${answer.is_useful ? 'validated' : ''}`}
-                key={answer.id}
-              >
-                <div className="answer-head">
-                  <HelpAvatar author={answer.author} size="small" />
-                  <b>{answer.author.display_name || answer.author.pseudo}</b>
-                  <small>
-                    @{answer.author.pseudo}
-                    {answer.level ? ` · ${answer.level}` : ''}
-                  </small>
-                  {answer.is_useful && (
-                    <em>{lang === 'en' ? 'Useful ✓' : 'Utile ✓'}</em>
-                  )}
-                </div>
-
-                {editingId === answer.id ? (
-                  <form className="answer-edit" onSubmit={(event) => void saveEdit(event, answer)}>
-                    <textarea
-                      className="text-input answer-textarea"
-                      value={editBody}
-                      maxLength={10000}
-                      onChange={(event) => setEditBody(event.target.value)}
-                      aria-label={lang === 'en' ? 'Edit your answer' : 'Modifier ta réponse'}
-                    />
-                    <input
-                      className="text-input"
-                      value={editProof}
-                      placeholder={
-                        lang === 'en'
-                          ? 'Proof: GitHub link (optional)'
-                          : 'Preuve : lien GitHub (facultatif)'
-                      }
-                      onChange={(event) => setEditProof(event.target.value)}
-                    />
-                    <div className="answer-actions">
-                      <button
-                        className="secondary small-action"
-                        type="submit"
-                        disabled={busy || !online || !editBody.trim()}
-                      >
-                        {lang === 'en' ? 'Save' : 'Enregistrer'}
-                      </button>
-                      <button
-                        className="ghost small-action"
-                        type="button"
-                        onClick={() => setEditingId(null)}
-                      >
-                        {lang === 'en' ? 'Cancel' : 'Annuler'}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <>
-                    <p className="answer-body">{answer.body}</p>
-                    {answer.proof_url.startsWith('https://') && (
-                      <a
-                        className="proof-link"
-                        href={answer.proof_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Icon name="github" size={16} />
-                        {lang === 'en' ? 'View proof' : 'Voir la preuve'}
-                      </a>
-                    )}
-                  </>
-                )}
-
-                <div className="answer-actions">
-                  {canValidate && (
-                    <button
-                      className="secondary small-action useful-action"
-                      type="button"
-                      disabled={busy || !online}
-                      onClick={() => void handleValidate(answer)}
-                    >
-                      {lang === 'en' ? 'Useful ✓' : 'Utile ✓'}
-                    </button>
-                  )}
-                  {ownAnswer && !answer.is_useful && editingId !== answer.id && (
-                    <>
-                      <button
-                        className="ghost small-action"
-                        type="button"
-                        disabled={busy || !online}
-                        onClick={() => startEdit(answer)}
-                      >
-                        {lang === 'en' ? 'Edit' : 'Modifier'}
-                      </button>
-                      <button
-                        className="ghost small-action"
-                        type="button"
-                        disabled={busy || !online}
-                        onClick={() => void removeAnswer(answer)}
-                      >
-                        {lang === 'en' ? 'Delete' : 'Supprimer'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </article>
-            )
-          })}
-        </section>
-      )}
-
-      {showOfflineNote && (
-        <p className="help-offline-note" role="status">
-          <Icon name="wifi" size={16} />
-          {lang === 'en'
-            ? 'Offline: sending is disabled. Your drafts stay on this device.'
-            : 'Hors-ligne : les envois sont désactivés. Tes brouillons restent sur cet appareil.'}
-        </p>
-      )}
-
-      {!user && (
-        <section className="glass help-state signin-invite">
-          <h2>{lang === 'en' ? 'Sign in to answer' : 'Connecte-toi pour répondre'}</h2>
-          <p>
-            {lang === 'en'
-              ? 'You can read the conversation now. Sign in when you want to help.'
-              : 'Tu peux lire la conversation maintenant. Connecte-toi quand tu veux aider.'}
-          </p>
-        </section>
-      )}
-
-      {canAnswer && (
-        <form className="glass answer-form" onSubmit={(event) => void submitAnswer(event)}>
-          <h3>{lang === 'en' ? 'Your answer' : 'Ta réponse'}</h3>
-          <textarea
-            className="text-input answer-textarea"
-            value={answerBody}
-            maxLength={10000}
-            placeholder={
-              lang === 'en'
-                ? 'Explain the fix simply, step by step…'
-                : 'Explique la solution simplement, étape par étape…'
-            }
-            onChange={(event) => setAnswerBody(event.target.value)}
-            aria-label={lang === 'en' ? 'Your answer' : 'Ta réponse'}
-          />
-          <input
-            className="text-input"
-            value={answerProof}
-            placeholder={
-              lang === 'en'
-                ? 'Proof: GitHub link (optional)'
-                : 'Preuve : lien GitHub (facultatif)'
-            }
-            onChange={(event) => setAnswerProof(event.target.value)}
-          />
-          <p className="form-note">
-            {lang === 'en'
-              ? 'Your draft is saved on this device.'
-              : 'Ton brouillon est enregistré sur cet appareil.'}
-          </p>
-          <Primary type="submit" disabled={busy || !online || !answerBody.trim()}>
-            {busy
-              ? lang === 'en'
-                ? 'Sending…'
-                : 'Envoi…'
-              : lang === 'en'
-                ? 'Send my answer'
-                : 'Envoyer ma réponse'}
-          </Primary>
-          {!online && (
-            <p className="form-note offline-reason">
-              {lang === 'en'
-                ? 'Sending is disabled while you are offline.'
-                : 'L’envoi est désactivé tant que tu es hors-ligne.'}
-            </p>
-          )}
-        </form>
-      )}
-
-      {isAuthor && question.status === 'open' && (
-        <p className="form-note owner-note">
-          {lang === 'en'
-            ? 'This is your question: choose the answer that helped you most.'
-            : 'C’est ta question : choisis la réponse qui t’a le plus aidé.'}
-        </p>
-      )}
-    </main>
-  )
-}
-
-function Add({
-  go,
-  onPosted,
-}: {
-  go: (s: Screen) => void
-  onPosted: (questionId: string) => void
-}) {
-  const lang = useLang()
-  const online = useOnline()
-  const { user, stats, refreshStats } = useAuth()
-  const userId = user?.id ?? 'anon'
-  const draftKey = `${QUESTION_DRAFT_PREFIX}:${userId}`
-  const [draft, setDraft] = useState<QuestionDraft>(() => readQuestionDraft(draftKey))
-  const [freeAvailable, setFreeAvailable] = useState<boolean | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let active = true
-    setFreeAvailable(null)
-    isFreeQuestionAvailable()
-      .then((value) => {
-        if (active) setFreeAvailable(value)
-      })
-      .catch(() => {
-        if (active) setFreeAvailable(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [userId])
-
-  useEffect(() => {
-    const empty =
-      !draft.title.trim() &&
-      !draft.body.trim() &&
-      !draft.technologies.trim() &&
-      !draft.githubUrl.trim() &&
-      !draft.beginnerOk &&
-      draft.tier === 1
-    if (empty) {
-      clearDraft(draftKey)
-      return
-    }
-    writeDraft(draftKey, draft)
-  }, [draft, draftKey])
-
-  const balance = stats?.balance ?? 0
-  const balanceKnown = Boolean(stats)
-  const canAfford = balanceKnown && balance >= draft.tier
-  const freeTier = draft.tier === 1
-  const canUseFree = !canAfford && freeTier && freeAvailable === true
-  const canPost = canAfford || canUseFree
-  const balanceAfter = canAfford ? balance - draft.tier : canUseFree ? balance : null
-
-  const updateDraft = (changes: Partial<QuestionDraft>) => {
-    setDraft((current) => ({ ...current, ...changes }))
-  }
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (submitting || !online || !canPost) return
-    setSubmitting(true)
-    setError(null)
-    try {
-      const questionId = await postQuestion({
-        title: draft.title,
-        body: draft.body,
-        technologies: draft.technologies.split(','),
-        tier: draft.tier,
-        githubUrl: draft.githubUrl,
-        beginnerOk: draft.beginnerOk,
-      })
-      clearDraft(draftKey)
-      await refreshStats()
-      onPosted(questionId)
-    } catch (cause: unknown) {
-      setError(toFrenchError(cause))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const tierHints: Record<HelpTier, { fr: string; en: string }> = {
-    1: { fr: 'Pour une petite question rapide', en: 'For a small quick question' },
-    3: { fr: 'Pour un vrai blocage', en: 'For a real blocker' },
-    6: { fr: 'Pour un problème complexe', en: 'For a complex problem' },
-  }
-
-  return (
-    <main className="screen">
-      <Header title="Demander de l’aide" back={() => go('help')} />
-      <form className="form help-ask-form" onSubmit={(event) => void handleSubmit(event)}>
-        <p className="eyebrow">Explique simplement</p>
-        <h2>Où es-tu bloqué ?</h2>
-
-        <label>
-          <span>{lang === 'en' ? 'Question title' : 'Titre de la question'}</span>
-          <input
-            className="text-input"
-            value={draft.title}
-            maxLength={300}
-            placeholder={
-              lang === 'en'
-                ? 'E.g. My Mobile Money payment returns an error'
-                : 'Ex. Mon paiement Mobile Money affiche une erreur'
-            }
-            onChange={(event) => updateDraft({ title: event.target.value })}
-          />
-        </label>
-
-        <label>
-          <span>{lang === 'en' ? 'Description' : 'Description'}</span>
-          <textarea
-            value={draft.body}
-            maxLength={10000}
-            placeholder={
-              lang === 'en'
-                ? 'What did you try? What error do you see?'
-                : 'Qu’as-tu essayé ? Quel message d’erreur vois-tu ?'
-            }
-            onChange={(event) => updateDraft({ body: event.target.value })}
-          />
-        </label>
-
-        <label>
-          <span>{lang === 'en' ? 'Technology' : 'Technologie'}</span>
-          <input
-            className="text-input"
-            value={draft.technologies}
-            placeholder="React, Node.js, PostgreSQL"
-            onChange={(event) => updateDraft({ technologies: event.target.value })}
-          />
-        </label>
-        <p className="form-note">
-          {lang === 'en' ? 'Separate technologies with commas.' : 'Sépare les technologies par des virgules.'}
-        </p>
-
-        <fieldset className="tier-fieldset">
-          <legend>{lang === 'en' ? 'Choose your help level' : 'Choisis ton palier d’aide'}</legend>
-          <div className="tier-options" role="radiogroup">
-            {([1, 3, 6] as HelpTier[]).map((tier) => (
-              <button
-                key={tier}
-                type="button"
-                role="radio"
-                aria-checked={draft.tier === tier}
-                className={`glass tier-option ${draft.tier === tier ? 'active' : ''}`}
-                onClick={() => updateDraft({ tier })}
-              >
-                <span>
-                  <b>{tierLabel(tier, lang)}</b>
-                  <small>{tierHints[tier][lang]}</small>
-                </span>
-                <strong>{pointsLabel(tier, lang)}</strong>
-              </button>
-            ))}
-          </div>
-          <p className="form-note tier-note">
-            {lang === 'en'
-              ? 'A question stays open for 7 days. Points are set aside and refunded if nobody helps.'
-              : 'Une question reste ouverte 7 jours. Les points sont mis de côté et rendus si personne ne t’aide.'}
-          </p>
-        </fieldset>
-
-        <label>
-          <span>{lang === 'en' ? 'GitHub link (optional)' : 'Lien GitHub (facultatif)'}</span>
-          <input
-            className="text-input"
-            value={draft.githubUrl}
-            placeholder="https://github.com/ton-pseudo/ton-projet"
-            onChange={(event) => updateDraft({ githubUrl: event.target.value })}
-          />
-        </label>
-
-        <label className="check-line">
-          <input
-            type="checkbox"
-            checked={draft.beginnerOk}
-            onChange={(event) => updateDraft({ beginnerOk: event.target.checked })}
-          />
-          <span>
-            <b>{lang === 'en' ? 'Beginners welcome' : 'Débutant bienvenu'}</b>
-            <small>
-              {lang === 'en'
-                ? 'A beginner can answer and earn a mentor bonus.'
-                : 'Un débutant peut répondre et gagner un bonus mentor.'}
-            </small>
-          </span>
-        </label>
-
-        <div className={`balance-after ${canPost ? '' : 'muted'}`}>
-          <span>{lang === 'en' ? 'Your balance after posting' : 'Ton solde après publication'}</span>
-          <b>
-            {!balanceKnown
-              ? '—'
-              : balanceAfter === null
-                ? lang === 'en'
-                  ? 'Not enough points'
-                  : 'Solde insuffisant'
-                : `${balanceAfter} ${lang === 'en' ? 'pts' : 'points'}`}
-          </b>
-          {canUseFree && (
-            <small>
-              {lang === 'en'
-                ? 'Free question: no points are deducted.'
-                : 'Question gratuite : aucun point n’est déduit.'}
-            </small>
-          )}
-        </div>
-
-        {balanceKnown && !canAfford && freeTier && freeAvailable === true && (
-          <div className="glass free-question-card">
-            <Icon name="star" size={22} />
-            <div>
-              <h3>{lang === 'en' ? 'Free question available' : 'Question gratuite disponible'}</h3>
-              <p>
-                {lang === 'en'
-                  ? '1 left this week. It covers the Quick help level (1 point).'
-                  : '1 restante cette semaine. Elle couvre le palier Coup de pouce (1 point).'}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {balanceKnown && !canAfford && !freeTier && freeAvailable === true && (
-          <div className="glass free-question-card">
-            <Icon name="star" size={22} />
-            <div>
-              <h3>{lang === 'en' ? 'Your free question is still available' : 'Ta question gratuite est encore disponible'}</h3>
-              <p>
-                {lang === 'en'
-                  ? 'It only covers the Quick help level (1 point). Choose it to post for free.'
-                  : 'Elle couvre seulement le palier Coup de pouce (1 point). Choisis-le pour publier gratuitement.'}
-              </p>
-              <button
-                className="ghost small-action"
-                type="button"
-                onClick={() => updateDraft({ tier: 1 })}
-              >
-                {lang === 'en' ? 'Choose Quick help (1 point)' : 'Choisir Coup de pouce (1 point)'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {balanceKnown && !canAfford && freeAvailable === false && (
-          <section className="glass earn help-earn">
-            <h3>{lang === 'en' ? 'Earn points in 2 minutes' : 'Gagne des points en 2 minutes'}</h3>
-            <p>
-              {lang === 'en'
-                ? 'Your free question is already used this week. Two quick ways to earn points:'
-                : 'Ta question gratuite est déjà utilisée cette semaine. Deux façons rapides de gagner des points :'}
-            </p>
-            <button type="button" onClick={() => go('help')}>
-              {lang === 'en' ? 'Answer a beginner question' : 'Répondre à une question débutant'}
-              <Icon name="arrow" size={18} />
-            </button>
-            <button type="button" onClick={() => go('share')}>
-              {lang === 'en' ? 'Share a project' : 'Partager un projet'}
-              <Icon name="arrow" size={18} />
-            </button>
-          </section>
-        )}
-
-        {balanceKnown && !canAfford && freeAvailable === null && (
-          <p className="form-note">
-            {lang === 'en'
-              ? 'Checking whether your free question is available…'
-              : 'Vérification de ta question gratuite…'}
-          </p>
-        )}
-
-        {!online && (
-          <p className="help-offline-note" role="status">
-            <Icon name="wifi" size={16} />
-            {lang === 'en'
-              ? 'Offline: posting is disabled. Your draft stays on this device.'
-              : 'Hors-ligne : la publication est désactivée. Ton brouillon reste sur cet appareil.'}
-          </p>
-        )}
-
-        {error && (
-          <p className="inline-error form-error" role="alert">
-            {error}
-          </p>
-        )}
-
-        <Primary
-          type="submit"
-          disabled={submitting || !online || !balanceKnown || !canPost}
-        >
-          {submitting
-            ? lang === 'en'
-              ? 'Publishing…'
-              : 'Publication…'
-            : canUseFree
-              ? lang === 'en'
-                ? 'Ask my free question (1 left this week)'
-                : 'Poser ma question gratuite (1 restante cette semaine)'
-              : !canPost && balanceKnown
-                ? lang === 'en'
-                  ? 'Not enough points'
-                  : 'Solde insuffisant'
-                : lang === 'en'
-                  ? 'Publish my question'
-                  : 'Publier ma question'}
-        </Primary>
-
-        <p className="form-note">
-          {lang === 'en'
-            ? 'Your draft is saved on this device and removed after publishing.'
-            : 'Ton brouillon est enregistré sur cet appareil et effacé après publication.'}
-        </p>
-      </form>
-    </main>
-  )
-}
-
-function BadgeFamilyCard({
-  family,
-  badge,
-}: {
-  family: BadgeFamily
-  badge: TierBadgeProgress
-}) {
-  const lang = useLang()
-  const meta = BADGE_FAMILY_META[family]
-  const currentTier = badge.tier
-    ? tierName(badge.tier, lang)
-    : lang === 'en'
-      ? 'No tier yet'
-      : 'Aucun palier'
-  const countLabel = `${badge.count} ${unitFor(family, badge.count, lang)}`
-  const nextLabel = badge.nextTier
-    ? lang === 'en'
-      ? `${badge.remaining} more ${unitFor(family, badge.remaining, lang)} for ${tierName(badge.nextTier, lang)}`
-      : `${badge.remaining} ${unitFor(family, badge.remaining, lang)} de plus pour le palier ${tierName(badge.nextTier, lang)}`
-    : lang === 'en'
-      ? 'Highest tier reached'
-      : 'Palier maximal atteint'
-  const aria =
-    lang === 'en'
-      ? `${familyLabel(family, lang)} badge: ${currentTier}. ${countLabel}. ${nextLabel}`
-      : `Badge ${familyLabel(family, lang)} : ${currentTier}. ${countLabel}. ${nextLabel}`
-
-  return (
-    <article
-      className={`badge-family tier-${badge.tier ?? 'none'}`}
-      aria-label={aria}
-    >
-      <div className="badge-family-head">
-        <span className="badge-medal" aria-hidden="true">
-          <Icon name={meta.icon} size={20} />
-        </span>
-        <div>
-          <b>{meta.label[lang]}</b>
-          <small>{currentTier}</small>
-        </div>
-        <strong>{badge.count}</strong>
-      </div>
-      <div
-        className="badge-bar"
-        role="img"
-        aria-label={
-          lang === 'en'
-            ? `${Math.round(badge.percent)}% towards the next tier`
-            : `${Math.round(badge.percent)} % vers le palier suivant`
-        }
-      >
-        <span style={{ width: `${badge.percent}%` }} />
-      </div>
-      <small className="badge-next">{nextLabel}</small>
-    </article>
-  )
-}
-
-function SpecialtyBadgeCard({ badge }: { badge: SpecialtyProgress }) {
-  const lang = useLang()
-  const currentTier = badge.tier
-    ? tierName(badge.tier, lang)
-    : lang === 'en'
-      ? 'No tier yet'
-      : 'Aucun palier'
-  const countLabel = `${badge.count} ${
-    badge.count === 1
-      ? lang === 'en'
-        ? 'validated answer'
-        : 'réponse validée'
-      : lang === 'en'
-        ? 'validated answers'
-        : 'réponses validées'
-  }`
-  const nextLabel = badge.nextTier
-    ? lang === 'en'
-      ? `${badge.remaining} more for ${tierName(badge.nextTier, lang)}`
-      : `${badge.remaining} de plus pour le palier ${tierName(badge.nextTier, lang)}`
-    : lang === 'en'
-      ? 'Highest tier reached'
-      : 'Palier maximal atteint'
-
-  return (
-    <article
-      className={`specialty-badge tier-${badge.tier ?? 'none'}`}
-      aria-label={`Expert ${badge.technology} — ${currentTier}, ${countLabel}`}
-    >
-      <div className="specialty-badge-head">
-        <span aria-hidden="true">
-          <Icon name="code" size={18} />
-        </span>
-        <div>
-          <b>Expert {badge.technology}</b>
-          <small>
-            {currentTier} · {countLabel}
-          </small>
-        </div>
-      </div>
-      <div className="badge-bar" aria-hidden="true">
-        <span style={{ width: `${badge.percent}%` }} />
-      </div>
-      <small className="badge-next">{nextLabel}</small>
-    </article>
-  )
-}
-
-function CommunityBadgeTile({ badge }: { badge: CommunityBadgeProgress }) {
-  const lang = useLang()
-  const meta = COMMUNITY_META[badge.id]
-  const state =
-    badge.unlocked
-      ? lang === 'en'
-        ? 'Unlocked'
-        : 'Débloqué'
-      : lang === 'en'
-        ? 'Locked'
-        : 'À débloquer'
-  return (
-    <article
-      className={`community-badge ${badge.unlocked ? 'unlocked' : ''}`}
-      aria-label={`${meta.title[lang]} — ${state}. ${meta.description[lang]}`}
-    >
-      <span aria-hidden="true">
-        <Icon name={badge.unlocked ? meta.icon : 'lock'} size={19} />
-      </span>
-      <div>
-        <b>{meta.title[lang]}</b>
-        <small>{meta.description[lang]}</small>
-      </div>
-      <em>
-        {badge.id === 'kind'
-          ? `${badge.count} / ${badge.target}`
-          : badge.unlocked
-            ? '✓'
-            : '—'}
-      </em>
-    </article>
-  )
-}
-
-function QuestChecklist({ quest }: { quest: ProgressSummary['quest'] }) {
-  const lang = useLang()
-  return (
-    <ul className="quest-list">
-      {quest.missions.map((mission) => (
-        <li key={mission.id} className={mission.done ? 'done' : ''}>
-          <span className="quest-check" aria-hidden="true">
-            {mission.done && <Icon name="check" size={14} />}
-          </span>
-          <span>
-            <Icon name={QUEST_META[mission.id].icon} size={18} />
-            <small>{questLabel(mission.id, lang)}</small>
-          </span>
-          <em>
-            {mission.done
-              ? lang === 'en'
-                ? 'Done'
-                : 'Fait'
-              : lang === 'en'
-                ? 'To do'
-                : 'À faire'}
-          </em>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function ChallengePanel({
-  challenge,
-}: {
-  challenge: ProgressSummary['challenge']
-}) {
-  const lang = useLang()
-  const target = challenge.target || CHALLENGE_TARGET
-  const percent = Math.min(
-    100,
-    (challenge.resolved / Math.max(1, target)) * 100,
-  )
-  const remaining = Math.max(0, target - challenge.resolved)
-  const message = challenge.achieved
-    ? challenge.badgeUnlocked
-      ? lang === 'en'
-        ? 'Goal reached! The “Challenge of the week” badge is unlocked.'
-        : 'Objectif atteint ! Le badge « Défi de la semaine » est débloqué.'
-      : lang === 'en'
-        ? 'The community reached the goal. Take one action this week to unlock the badge.'
-        : 'La communauté a atteint l’objectif. Fais une action cette semaine pour débloquer le badge.'
-    : lang === 'en'
-      ? `${remaining} more question${remaining > 1 ? 's' : ''} to solve this week.`
-      : `${remaining} question${remaining > 1 ? 's' : ''} encore à résoudre cette semaine.`
-
-  return (
-    <section className="glass challenge-panel">
-      <div className="challenge-head">
-        <span aria-hidden="true">
-          <Icon name="target" size={21} />
-        </span>
-        <div>
-          <b>{lang === 'en' ? 'Weekly challenge' : 'Défi de la semaine'}</b>
-          <small>
-            {lang === 'en'
-              ? 'The whole community'
-              : 'Toute la communauté'}
-          </small>
-        </div>
-      </div>
-      <div className="challenge-score">
-        <b>
-          {challenge.resolved} / {target}
-        </b>
-        <span>
-          {lang === 'en' ? 'questions solved' : 'questions résolues'}
-        </span>
-      </div>
-      <div
-        className="challenge-bar"
-        role="img"
-        aria-label={
-          lang === 'en'
-            ? `${challenge.resolved} out of ${target} questions solved`
-            : `${challenge.resolved} questions résolues sur ${target}`
-        }
-      >
-        <span style={{ width: `${percent}%` }} />
-      </div>
-      <p>{message}</p>
-    </section>
-  )
-}
 
 function celebrationContent(
   item: Celebration,
@@ -4101,657 +1989,7 @@ function Tutorial({ onDone }: { onDone: () => void }) {
   )
 }
 
-function HowItWorks({ back }: { back: () => void }) {
-  const lang = useLang()
-  const tr = (fr: string, en: string) => (lang === 'en' ? en : fr)
-  const tierRows: [string, string][] = [
-    [tr('Question palier 1', 'Tier 1 question'), '1'],
-    [tr('Question palier 3', 'Tier 3 question'), '3'],
-    [tr('Question palier 6', 'Tier 6 question'), '6'],
-  ]
 
-  return (
-    <main className="screen how-screen">
-      <Header title={tr('Comment ça marche', 'How it works')} back={back} />
-      <section className="how-intro glass">
-        <span aria-hidden="true">
-          <Icon name="book" size={26} />
-        </span>
-        <div>
-          <h1>{tr('Le jeu de l’entraide', 'The helping game')}</h1>
-          <p>
-            {tr(
-              'Cinq règles simples, des points réels et des badges pour reconnaître ceux qui font avancer la communauté.',
-              'Five simple rules, real points and badges that recognise the people moving the community forward.',
-            )}
-          </p>
-        </div>
-      </section>
-
-      <section className="how-section">
-        <h2>{tr('Les 5 règles', 'The 5 rules')}</h2>
-        <ol className="rules-list">
-          <li>
-            <b>{tr('Aide quelqu’un', 'Help someone')}</b>
-            <span>
-              {tr(
-                'Réponds à une question. Quand l’auteur valide ta réponse, tu reçois le palier mis de côté.',
-                'Answer a question. When the author validates your answer, you receive the held points.',
-              )}
-            </span>
-          </li>
-          <li>
-            <b>{tr('Partage un projet', 'Share a project')}</b>
-            <span>
-              {tr(
-                'Publie un projet open source : +3 points. Chaque « Ça m’a servi » reçu rapporte +1 point.',
-                'Publish an open-source project: +3 points. Every “This helped me” received earns +1 point.',
-              )}
-            </span>
-          </li>
-          <li>
-            <b>{tr('Pose une question', 'Ask a question')}</b>
-            <span>
-              {tr(
-                'Choisis un palier de 1, 3 ou 6 points. Les points sont mis de côté puis donnés à la réponse validée, ou remboursés après 7 jours sans validation.',
-                'Choose a 1, 3 or 6 point tier. Points are held, then given to the validated answer, or refunded after 7 days without a validation.',
-              )}
-            </span>
-          </li>
-          <li>
-            <b>{tr('Dis merci', 'Say thanks')}</b>
-            <span>
-              {tr(
-                'Clique sur « Ça m’a servi » quand un projet t’aide vraiment. L’auteur gagne +1 point, une fois par personne et par projet.',
-                'Click “This helped me” when a project truly helps you. The author earns +1 point, once per person and per project.',
-              )}
-            </span>
-          </li>
-          <li>
-            <b>{tr('Reviens chaque semaine', 'Come back every week')}</b>
-            <span>
-              {tr(
-                'Une action utile par semaine entretient ta série, ta quête et le défi collectif.',
-                'One useful action per week keeps your streak, quest and the collective challenge alive.',
-              )}
-            </span>
-          </li>
-        </ol>
-      </section>
-
-      <section className="how-section">
-        <h2>{tr('Gagner et dépenser', 'Earn and spend')}</h2>
-        <div className="how-tables">
-          <div className="how-table-card">
-            <h3>{tr('Gagner des points', 'Earn points')}</h3>
-            <table>
-              <tbody>
-                <tr>
-                  <td>{tr('Inscription', 'Sign-up')}</td>
-                  <td>+5</td>
-                </tr>
-                <tr>
-                  <td>{tr('Réponse validée', 'Validated answer')}</td>
-                  <td>+1, +3 {tr('ou', 'or')} +6</td>
-                </tr>
-                <tr>
-                  <td>{tr('Projet publié', 'Project published')}</td>
-                  <td>+3</td>
-                </tr>
-                <tr>
-                  <td>{tr('« Ça m’a servi » reçu', '“This helped me” received')}</td>
-                  <td>+1</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div className="how-table-card">
-            <h3>{tr('Dépenser des points', 'Spend points')}</h3>
-            <table>
-              <tbody>
-                {tierRows.map(([label, value]) => (
-                  <tr key={label}>
-                    <td>{label}</td>
-                    <td>−{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <small>
-              {tr(
-                'La question gratuite de la semaine couvre le palier 1. Un projet n’utilise jamais de points.',
-                'The weekly free question covers tier 1. A project never spends points.',
-              )}
-            </small>
-          </div>
-        </div>
-      </section>
-
-      <section className="how-section">
-        <h2>{tr('Les paliers 1, 3 et 6', 'Tiers 1, 3 and 6')}</h2>
-        <p>
-          {tr(
-            'Le palier est le montant que tu mets en jeu. Plus la question est difficile, plus la réponse peut rapporter. Une seule réponse est validée par question, et la question expire après 7 jours.',
-            'The tier is the amount you put at stake. The harder the question, the more an answer can earn. Only one answer is validated per question, and the question expires after 7 days.',
-          )}
-        </p>
-      </section>
-
-      <section className="how-section">
-        <h2>{tr('Les niveaux', 'Levels')}</h2>
-        <ol className="level-list">
-          {LEVELS.map((level) => (
-            <li key={level.min}>
-              <b>{lang === 'en' ? level.nameEn : level.name}</b>
-              <span>
-                {level.min} {tr('points gagnés', 'points earned')}
-              </span>
-            </li>
-          ))}
-        </ol>
-        <p>
-          {tr(
-            'Ton niveau suit ton total gagné, pas ton solde. Il ne redescend donc jamais.',
-            'Your level follows your total earned, not your balance. It therefore never goes down.',
-          )}
-        </p>
-      </section>
-
-      <section className="how-section">
-        <h2>{tr('La série et les jokers', 'Streak and jokers')}</h2>
-        <p>
-          {tr(
-            'Les semaines vont du lundi au lundi en UTC. Une semaine est active dès que tu publies une réponse, qu’une réponse est validée par l’auteur de la question, que tu publies un projet ou que tu dis « Ça m’a servi ». Une simple connexion ne compte pas.',
-            'Weeks run Monday to Monday in UTC. A week is active as soon as you publish an answer, an answer is validated by the question author, you publish a project, or you mark a project as helpful. Simply logging in does not count.',
-          )}
-        </p>
-        <p>
-          {tr(
-            'Un joker pardonne une semaine manquée, à condition qu’elle soit encadrée par deux semaines actives et qu’aucun autre joker ne soit utilisé à moins de quatre semaines. Les semaines pardonnées comptent dans la série.',
-            'A joker forgives one missed week, provided it is surrounded by two active weeks and no other joker was used within four weeks. Forgiven weeks count towards the streak.',
-          )}
-        </p>
-      </section>
-
-      <section className="how-section">
-        <h2>{tr('Les badges', 'Badges')}</h2>
-        <table className="badge-table">
-          <thead>
-            <tr>
-              <th>{tr('Famille', 'Family')}</th>
-              <th>Bronze</th>
-              <th>{tr('Argent', 'Silver')}</th>
-              <th>{tr('Or', 'Gold')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(
-              [
-                ['help', tr('Entraide', 'Helping')],
-                ['share', tr('Partage', 'Sharing')],
-                ['useful', tr('Utilité', 'Usefulness')],
-                ['streak', tr('Série', 'Streak')],
-              ] as [BadgeFamily, string][]
-            ).map(([family, label]) => (
-              <tr key={family}>
-                <td>{label}</td>
-                {BADGE_THRESHOLDS[family].map((threshold) => (
-                  <td key={threshold}>{threshold}</td>
-                ))}
-              </tr>
-            ))}
-            <tr>
-              <td>{tr('Spécialités', 'Specialties')}</td>
-              {BADGE_THRESHOLDS.specialty.map((threshold) => (
-                <td key={threshold}>{threshold}</td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-        <p>
-          {tr(
-            'Entraide = réponses validées. Partage = projets publiés. Utilité = « Ça m’a servi » reçus. Série = semaines consécutives. Spécialités : jusqu’à trois technologies, avec le titre « Expert <techno> ».',
-            'Helping = validated answers. Sharing = published projects. Usefulness = “This helped me” received. Streak = consecutive weeks. Specialties: up to three technologies, with the “Expert <technology>” title.',
-          )}
-        </p>
-        <p>
-          {tr(
-            'Badges Communauté : « Première réponse » pour ta première réponse, « Nouvelle voix » pour une réponse à une question débutant, « Bienveillant » pour trois réponses à des questions débutant.',
-            'Community badges: “First answer” for your first answer, “New voice” for an answer to a beginner question, “Kind” for three answers to beginner questions.',
-          )}
-        </p>
-      </section>
-
-      <section className="how-section">
-        <h2>{tr('Quête et défi', 'Quest and challenge')}</h2>
-        <p>
-          {tr(
-            'Chaque semaine, trois missions : répondre à une question débutant, publier un projet et dire « Ça m’a servi ». Le défi collectif est atteint quand la communauté résout 10 questions dans la semaine. Si tu as été actif, tu débloques le badge « Défi de la semaine ».',
-            'Each week, three missions: answer a beginner question, publish a project and mark a project as helpful. The collective challenge is reached when the community solves 10 questions in the week. If you were active, you unlock the “Challenge of the week” badge.',
-          )}
-        </p>
-        <button className="secondary" type="button" onClick={back}>
-          {tr('Retour au profil', 'Back to profile')}
-        </button>
-      </section>
-    </main>
-  )
-}
-
-function Profile({
-  go,
-  progressResult,
-  progressLoading,
-  progressError,
-  onRefreshProgress,
-  dataSaver,
-  onDataSaverChange,
-}: {
-  go: (s: Screen) => void
-  progressResult: ProgressResult | null
-  progressLoading: boolean
-  progressError: string | null
-  onRefreshProgress: () => void
-  dataSaver: boolean
-  onDataSaverChange: (value: boolean) => void
-}) {
-  const {
-    user,
-    profile,
-    profileError,
-    stats,
-    statsLoading,
-    statsError,
-    signOut,
-    refreshProfile,
-    refreshStats,
-  } = useAuth()
-  const lang = useLang()
-  const [ledger, setLedger] = useState<LedgerEntry[] | null>(null)
-  const [ledgerError, setLedgerError] = useState<string | null>(null)
-  const [ledgerReload, setLedgerReload] = useState(0)
-  const [signingOut, setSigningOut] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const userId = user?.id
-
-  useEffect(() => {
-    if (!userId) {
-      setLedger([])
-      return
-    }
-    let active = true
-    setLedger(null)
-    setLedgerError(null)
-    getMyLedger(20)
-      .then((entries) => {
-        if (active) setLedger(entries)
-      })
-      .catch((cause: unknown) => {
-        if (active) setLedgerError(toFrenchError(cause))
-      })
-    return () => {
-      active = false
-    }
-  }, [userId, ledgerReload])
-
-  const displayName = profile?.display_name.trim() || profile?.pseudo || ''
-  const pseudo = profile?.pseudo ?? ''
-  const avatar = profile?.avatar_url.startsWith('https://')
-    ? profile.avatar_url
-    : ''
-  const initials = initialsFor(displayName, pseudo)
-  const progress = progressResult?.progress ?? null
-  const totalEarned = progress?.level.totalEarned ?? stats?.total_earned ?? 0
-  const info = progress?.level ?? levelFor(totalEarned)
-  const fromCache = progressResult?.fromCache ?? false
-  const savedAt = progressResult?.savedAt ?? null
-  const levelName =
-    lang === 'en' ? info.current.nameEn : info.current.name
-
-  const progressLabel = progress || stats
-    ? info.next
-      ? lang === 'en'
-        ? `${info.remaining} more points to become ${info.next.nameEn}`
-        : `Encore ${info.remaining} points pour devenir ${info.next.name}`
-      : lang === 'en'
-        ? 'Highest level reached'
-        : 'Niveau maximal atteint'
-    : statsLoading
-      ? lang === 'en'
-        ? 'Loading…'
-        : 'Chargement…'
-      : (statsError ?? (lang === 'en' ? 'Points unavailable' : 'Points indisponibles'))
-
-  const handleSignOut = async () => {
-    setActionError(null)
-    setSigningOut(true)
-    const result = await signOut()
-    if (result.error) {
-      setActionError(result.error)
-      setSigningOut(false)
-    }
-  }
-
-  const families: BadgeFamily[] = ['help', 'share', 'useful', 'streak']
-  const plural = (count: number, one: string, many: string) =>
-    count === 1 ? one : many
-
-  return (
-    <main className="screen">
-      <Header title="Mon profil" />
-      <div className="profile-layout">
-        <div>
-          {profileError && (
-            <div className="glass profile-notice" role="status">
-              <p>{profileError}</p>
-              <button className="link-btn" onClick={() => void refreshProfile()}>
-                Réessayer
-              </button>
-            </div>
-          )}
-          {progressError && (
-            <div className="glass profile-notice" role="status">
-              <p>{progressError}</p>
-              <button className="link-btn" onClick={onRefreshProgress}>
-                Réessayer
-              </button>
-            </div>
-          )}
-          <section className="profile-head">
-            <div className="avatar">
-              {avatar ? <img src={avatar} alt="" /> : initials}
-              <i />
-            </div>
-            <div>
-              <h1>{displayName || 'Profil indisponible'}</h1>
-              <p>{pseudo ? `@${pseudo}` : profileError ?? ''}</p>
-            </div>
-          </section>
-          <section className="glass stats">
-            <div>
-              <b>{stats ? stats.balance : '—'}</b>
-              <span>Solde</span>
-            </div>
-            <div>
-              <b>{stats ? stats.total_earned : '—'}</b>
-              <span>Total gagné</span>
-            </div>
-            <div>
-              <b className="stats-level">{levelName || '—'}</b>
-              <span>Niveau</span>
-            </div>
-            <i>
-              <span style={{ width: `${info.percent}%` }} />
-            </i>
-            <small>{progressLabel}</small>
-          </section>
-          {statsError && (
-            <button
-              className="link-btn stats-retry"
-              onClick={() => void refreshStats()}
-            >
-              Réessayer
-            </button>
-          )}
-
-          {progressLoading && !progress ? (
-            <section className="glass progress-loading" role="status">
-              {lang === 'en'
-                ? 'Loading your progress…'
-                : 'Chargement de ta progression…'}
-            </section>
-          ) : progress ? (
-            <>
-              <section className="glass streak-panel">
-                <div className="streak-head">
-                  <span className="streak-flame" aria-hidden="true">
-                    <Icon name="flame" size={27} />
-                  </span>
-                  <div>
-                    <b>{progress.streak.current}</b>
-                    <span>
-                      {lang === 'en'
-                        ? progress.streak.current === 1
-                          ? 'consecutive week'
-                          : 'consecutive weeks'
-                        : progress.streak.current === 1
-                          ? 'semaine d’affilée'
-                          : 'semaines d’affilée'}
-                    </span>
-                  </div>
-                  <em className={progress.activeThisWeek ? 'active' : ''}>
-                    {progress.activeThisWeek
-                      ? lang === 'en'
-                        ? 'This week counts'
-                        : 'Cette semaine compte'
-                      : lang === 'en'
-                        ? 'Your turn this week'
-                        : 'À toi de jouer cette semaine'}
-                  </em>
-                </div>
-                <p>
-                  {progress.streak.current > 0
-                    ? lang === 'en'
-                      ? `Your best streak: ${progress.streak.best} week${progress.streak.best > 1 ? 's' : ''}.`
-                      : `Ta meilleure série : ${progress.streak.best} semaine${progress.streak.best > 1 ? 's' : ''}.`
-                    : lang === 'en'
-                      ? 'One useful action this week starts your streak.'
-                      : 'Une action utile cette semaine lance ta série.'}
-                </p>
-                <small>
-                  {progress.streak.jokersUsed > 0
-                    ? lang === 'en'
-                      ? `${progress.streak.jokersUsed} joker${progress.streak.jokersUsed > 1 ? 's' : ''} used. A joker forgives one missed week out of four.`
-                      : `${progress.streak.jokersUsed} joker${progress.streak.jokersUsed > 1 ? 's' : ''} utilisé${progress.streak.jokersUsed > 1 ? 's' : ''}. Un joker pardonne une semaine manquée sur quatre.`
-                    : lang === 'en'
-                      ? 'A joker forgives one missed week out of four.'
-                      : 'Un joker pardonne une semaine manquée sur quatre.'}
-                </small>
-                {fromCache && savedAt && (
-                  <small className="cache-date">
-                    {lang === 'en' ? 'Last update: ' : 'Dernière mise à jour : '}
-                    {formatDateTime(savedAt, lang)}
-                  </small>
-                )}
-              </section>
-
-              <section className="glass quest-panel">
-                <div className="section-title">
-                  <h2>{lang === 'en' ? 'Weekly quest' : 'Quête de la semaine'}</h2>
-                  <span>
-                    {progress.quest.completed} / {progress.quest.total}
-                  </span>
-                </div>
-                <QuestChecklist quest={progress.quest} />
-                {progress.quest.allDone && (
-                  <p className="quest-success">
-                    {lang === 'en'
-                      ? 'Quest complete! All three missions are done.'
-                      : 'Quête terminée ! Les trois missions sont faites.'}
-                  </p>
-                )}
-              </section>
-
-              <ChallengePanel challenge={progress.challenge} />
-
-              <section className="section profile">
-                <h2>{lang === 'en' ? 'My badges' : 'Mes badges'}</h2>
-                <div className="badge-families">
-                  {families.map((family) => (
-                    <BadgeFamilyCard
-                      key={family}
-                      family={family}
-                      badge={progress.badges[family]}
-                    />
-                  ))}
-                </div>
-
-                <h2>Spécialités</h2>
-                {progress.badges.specialties.length > 0 ? (
-                  <div className="specialty-grid">
-                    {progress.badges.specialties.map((badge) => (
-                      <SpecialtyBadgeCard
-                        key={badge.technology}
-                        badge={badge}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="progress-hint">
-                    {lang === 'en'
-                      ? 'Answer questions in a technology to become an “Expert <technology>”.'
-                      : 'Réponds à des questions d’une technologie pour devenir « Expert <techno> ».'}
-                  </p>
-                )}
-
-                <h2>Communauté</h2>
-                <div className="community-grid">
-                  {progress.badges.community.map((badge) => (
-                    <CommunityBadgeTile key={badge.id} badge={badge} />
-                  ))}
-                </div>
-
-                <div className="impact impact-three">
-                  <div>
-                    <b>{progress.totals.resolvedQuestions}</b>
-                    <span>
-                      {lang === 'en'
-                        ? plural(
-                            progress.totals.resolvedQuestions,
-                            'question solved',
-                            'questions solved',
-                          )
-                        : plural(
-                            progress.totals.resolvedQuestions,
-                            'question résolue',
-                            'questions résolues',
-                          )}
-                    </span>
-                  </div>
-                  <div>
-                    <b>{progress.totals.projects}</b>
-                    <span>
-                      {lang === 'en'
-                        ? plural(
-                            progress.totals.projects,
-                            'project shared',
-                            'projects shared',
-                          )
-                        : plural(
-                            progress.totals.projects,
-                            'projet partagé',
-                            'projets partagés',
-                          )}
-                    </span>
-                  </div>
-                  <div>
-                    <b>{progress.totals.members}</b>
-                    <span>
-                      {lang === 'en'
-                        ? plural(progress.totals.members, 'member', 'members')
-                        : plural(progress.totals.members, 'membre', 'membres')}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  className="secondary profile-how"
-                  onClick={() => go('how')}
-                  type="button"
-                >
-                  <Icon name="book" size={18} />{' '}
-                  {lang === 'en' ? 'How it works' : 'Comment ça marche'}
-                </button>
-              </section>
-            </>
-          ) : null}
-
-          <section className="glass saver-row">
-            <div>
-              <b>{lang === 'en' ? 'Data saver' : 'Économie de données'}</b>
-              <small>
-                {lang === 'en'
-                  ? 'Turns off animations and blur, and lightens shadows.'
-                  : 'Coupe les animations et le flou, et allège les ombres.'}
-              </small>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={dataSaver}
-              aria-label={
-                lang === 'en' ? 'Data saver' : 'Économie de données'
-              }
-              className={`switch ${dataSaver ? 'on' : ''}`}
-              onClick={() => onDataSaverChange(!dataSaver)}
-            >
-              <span aria-hidden="true" />
-            </button>
-          </section>
-          <section className="glass lang-row">
-            <span>Langue</span>
-            <AccountLangToggle />
-          </section>
-          <button
-            className="secondary logout"
-            onClick={() => void handleSignOut()}
-            disabled={signingOut}
-            type="button"
-          >
-            {signingOut ? 'Déconnexion…' : 'Se déconnecter'}
-          </button>
-          {actionError && (
-            <p className="inline-error" role="alert">
-              {actionError}
-            </p>
-          )}
-        </div>
-        <section className="profile-history">
-          <h2>Historique des points</h2>
-          <div className="glass history">
-            {ledgerError ? (
-              <p className="history-state error" role="status">
-                {ledgerError}
-                <button
-                  className="link-btn"
-                  onClick={() => setLedgerReload((value) => value + 1)}
-                >
-                  Réessayer
-                </button>
-              </p>
-            ) : ledger === null ? (
-              <p className="history-state">Chargement de l’historique…</p>
-            ) : ledger.length === 0 ? (
-              <p className="history-state">Aucun mouvement pour le moment.</p>
-            ) : (
-              ledger.map((entry) => {
-                const negative = entry.delta < 0
-                const deltaLabel =
-                  entry.delta > 0
-                    ? `+${entry.delta}`
-                    : entry.delta < 0
-                      ? `−${Math.abs(entry.delta)}`
-                      : '0'
-                return (
-                  <div key={entry.id}>
-                    <i className={negative ? 'minus' : ''}>
-                      {entry.delta > 0 ? '+' : entry.delta < 0 ? '−' : '•'}
-                    </i>
-                    <p>
-                      <b>{entry.reasonLabel}</b>
-                      <small>{formatLedgerDate(entry.created_at, lang)}</small>
-                    </p>
-                    <strong>{deltaLabel}</strong>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </section>
-      </div>
-    </main>
-  )
-}
 function States({ go }: { go: (s: Screen) => void }) {
   return (
     <main className="screen">
@@ -4822,7 +2060,14 @@ function Nav({
       }}
     >
       <div className="nav-logo">
-        <img src="/assets/bondev-logo.png" alt="Bondev" />
+        <img
+          src="/assets/bondev-logo-96.webp"
+          srcSet="/assets/bondev-logo-48.webp 48w, /assets/bondev-logo-96.webp 96w"
+          sizes="48px"
+          width={96}
+          height={96}
+          alt="Bondev"
+        />
         <b>Bondev</b>
       </div>
       {items.map((x) => (
@@ -4868,7 +2113,12 @@ function Nav({
 function LoadingScreen() {
   return (
     <main className="loading-screen" aria-busy="true" aria-live="polite">
-      <img src="/assets/bondev-logo.png" alt="" />
+      <img
+        src="/assets/bondev-logo-192.webp"
+        width={192}
+        height={192}
+        alt=""
+      />
       <div className="spinner" aria-hidden="true" />
       <p>Chargement de ta session…</p>
     </main>
@@ -5219,88 +2469,93 @@ export default function App() {
                   {profileError}
                 </div>
               )}
-              {activeScreen === 'home' && (
-                <Home
-                  go={go}
-                  projects={projects}
-                  loading={projectsLoading}
-                  error={projectsError}
-                  fromCache={projectsFromCache}
-                  savedAt={projectsSavedAt}
-                  onRetry={retryProjects}
-                  onSearch={openResults}
-                  openProject={openProject}
-                  progress={progressResult?.progress ?? null}
-                  progressLoading={progressLoading}
-                  progressError={progressError}
-                  progressFromCache={progressResult?.fromCache ?? false}
-                  progressSavedAt={progressResult?.savedAt ?? null}
-                  onProgressRetry={() => void loadProgress()}
-                  onHow={() => go('how')}
-                />
-              )}{' '}
-              {activeScreen === 'results' && (
-                <Results
-                  go={go}
-                  query={query}
-                  setQuery={setQuery}
-                  projects={projects}
-                  loading={projectsLoading}
-                  error={projectsError}
-                  fromCache={projectsFromCache}
-                  savedAt={projectsSavedAt}
-                  onRetry={retryProjects}
-                  openProject={openProject}
-                />
-              )}{' '}
-              {activeScreen === 'project' && (
-                <ProjectDetail
-                  project={selectedProject}
-                  loading={projectsLoading}
-                  error={projectsError}
-                  back={() => go(detailFrom)}
-                  onRetry={retryProjects}
-                  onUsed={handleProjectUsed}
-                />
-              )}{' '}
-              {activeScreen === 'share' && (
-                <ShareProject go={go} onPublished={retryProjects} />
-              )}{' '}
-              {activeScreen === 'help' && (
-                <Help go={go} openQuestion={openQuestion} />
-              )}{' '}
-              {activeScreen === 'question' &&
-                (selectedQuestionId ? (
-                  <QuestionThread
-                    key={`${selectedQuestionId}:${userId ?? 'anon'}`}
-                    questionId={selectedQuestionId}
-                    back={() => go('help')}
+              {(activeScreen === 'home' || activeScreen === 'profile') && (
+                <GuestBanner />
+              )}
+              <Suspense fallback={<ScreenSkeleton />}>
+                {activeScreen === 'home' && (
+                  <Home
+                    go={go}
+                    projects={projects}
+                    loading={projectsLoading}
+                    error={projectsError}
+                    fromCache={projectsFromCache}
+                    savedAt={projectsSavedAt}
+                    onRetry={retryProjects}
+                    onSearch={openResults}
+                    openProject={openProject}
+                    progress={progressResult?.progress ?? null}
+                    progressLoading={progressLoading}
+                    progressError={progressError}
+                    progressFromCache={progressResult?.fromCache ?? false}
+                    progressSavedAt={progressResult?.savedAt ?? null}
+                    onProgressRetry={() => void loadProgress()}
+                    onHow={() => go('how')}
                   />
-                ) : (
+                )}{' '}
+                {activeScreen === 'results' && (
+                  <Results
+                    go={go}
+                    query={query}
+                    setQuery={setQuery}
+                    projects={projects}
+                    loading={projectsLoading}
+                    error={projectsError}
+                    fromCache={projectsFromCache}
+                    savedAt={projectsSavedAt}
+                    onRetry={retryProjects}
+                    openProject={openProject}
+                  />
+                )}{' '}
+                {activeScreen === 'project' && (
+                  <ProjectDetail
+                    project={selectedProject}
+                    loading={projectsLoading}
+                    error={projectsError}
+                    back={() => go(detailFrom)}
+                    onRetry={retryProjects}
+                    onUsed={handleProjectUsed}
+                  />
+                )}{' '}
+                {activeScreen === 'share' && (
+                  <ShareProject go={go} onPublished={retryProjects} />
+                )}{' '}
+                {activeScreen === 'help' && (
                   <Help go={go} openQuestion={openQuestion} />
-                ))}{' '}
-              {activeScreen === 'add' && (
-                <Add
-                  key={userId ?? 'anon'}
-                  go={go}
-                  onPosted={openQuestion}
-                />
-              )}{' '}
-              {activeScreen === 'profile' && (
-                <Profile
-                  go={go}
-                  progressResult={progressResult}
-                  progressLoading={progressLoading}
-                  progressError={progressError}
-                  onRefreshProgress={() => void loadProgress()}
-                  dataSaver={dataSaver}
-                  onDataSaverChange={setDataSaver}
-                />
-              )}{' '}
-              {activeScreen === 'how' && (
-                <HowItWorks back={() => go('profile')} />
-              )}{' '}
-              {activeScreen === 'states' && <States go={go} />}
+                )}{' '}
+                {activeScreen === 'question' &&
+                  (selectedQuestionId ? (
+                    <QuestionThread
+                      key={`${selectedQuestionId}:${userId ?? 'anon'}`}
+                      questionId={selectedQuestionId}
+                      back={() => go('help')}
+                    />
+                  ) : (
+                    <Help go={go} openQuestion={openQuestion} />
+                  ))}{' '}
+                {activeScreen === 'add' && (
+                  <Add
+                    key={userId ?? 'anon'}
+                    go={go}
+                    onPosted={openQuestion}
+                  />
+                )}{' '}
+                {activeScreen === 'profile' && (
+                  <Profile
+                    go={go}
+                    progressResult={progressResult}
+                    progressLoading={progressLoading}
+                    progressError={progressError}
+                    onRefreshProgress={() => void loadProgress()}
+                    dataSaver={dataSaver}
+                    onDataSaverChange={setDataSaver}
+                  />
+                )}{' '}
+                {activeScreen === 'how' && (
+                  <HowItWorks back={() => go('profile')} />
+                )}{' '}
+                {activeScreen === 'states' && <States go={go} />}
+              </Suspense>
             </div>
             <Nav
               active={activeScreen}

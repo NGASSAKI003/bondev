@@ -138,6 +138,54 @@ La progression est calculée **entièrement dans le navigateur**, en lecture seu
 
 Les règles de progression sont testées dans `src/lib/progress.test.ts` (seuils de niveaux, semaines UTC, série avec et sans joker, paliers et progression des badges, missions, défi atteint ou non).
 
+## Mode invité
+
+Un visiteur peut essayer Bondev sans compte GitHub avec le bouton secondaire **« Essayer sans compte »**, placé sous les autres moyens de connexion. Il appelle `supabase.auth.signInAnonymously()`. Si Supabase refuse, l'écran affiche exactement : « Le mode invité est indisponible pour l'instant, connecte-toi avec GitHub ».
+
+### Activer le mode invité dans Supabase
+
+1. Ouvre **Authentication > Sign In / Providers** dans le tableau de bord Supabase.
+2. Active **Anonymous sign-ins**.
+3. Vérifie que les migrations de `supabase/migrations/` sont déjà appliquées, notamment `0005_invites.sql` qui bloque les RPC réservées aux comptes réels.
+
+Sans cette activation, le bouton reste visible mais renvoie le message d'erreur ci-dessus. Aucun réglage n'est nécessaire dans le code.
+
+### Profil de l'invité
+
+- `src/lib/guest.ts` génère un pseudo `invite_` suivi de 6 caractères aléatoires (`a-z`, `0-9`), soit 13 caractères. Le format respecte la contrainte `^[a-zA-Z0-9_-]{3,30}$` de `profiles.pseudo`.
+- Le nom affiché est **« Invité »**, l'avatar et le lien GitHub restent vides.
+- Le profil est créé par `ensureProfile` dans `src/lib/auth.tsx`. En cas de conflit de pseudo, un nouveau suffixe est tiré (5 tentatives).
+- Aucune ligne n'est écrite directement dans `points_ledger` : les 5 points de bienvenue viennent du trigger SQL existant.
+- L'invité peut poser des questions, répondre et valider des réponses comme un compte normal, avec ses points d'invité.
+
+### Bannière et conversion
+
+Une bannière discrète s'affiche sur l'accueil et le profil : « Tu es en mode invité. Crée un compte GitHub pour garder tes points et publier un projet. » Elle propose **« Se connecter avec GitHub »** et peut être fermée. La fermeture est mémorisée par utilisateur dans `localStorage` (`bondev-guest-banner:<id>`).
+
+La conversion demande une confirmation (« Tes données d'invité (points, questions et réponses) seront perdues. Continuer avec GitHub ? »), déconnecte l'invité, puis lance l'OAuth GitHub. En cas d'échec OAuth, le message est remonté sur l'écran de connexion via `authNotice`.
+
+### Restrictions
+
+- **Partager un projet** : l'entrée reste visible, mais un invité voit l'écran `GuestRestriction` avec l'explication et le bouton GitHub. Aucun formulaire ni appel API n'est exécuté.
+- **Ça m'a servi** : le bouton reste visible. Un clic affiche l'explication sans appeler `mark_project_used`.
+- **Entraide** : les questions, réponses et validations restent autorisées.
+- La migration `0005_invites.sql` refuse aussi ces deux RPC côté base : les restrictions ne dépendent pas seulement de l'interface.
+
+### Tests et performance
+
+Les tests du pseudo invité, de la détection `is_anonymous` et de la bannière sont dans `src/lib/guest.test.ts` et se lancent avec `npm test`.
+
+Les écrans lourds (Entraide, Profil/Progression, Règles, Partage) sont chargés avec `React.lazy` et un squelette `Suspense`. Supabase est isolé dans son propre chunk. Les logos sont servis en WebP avec `width`/`height`, Montserrat utilise `font-display: swap` et un preconnect Supabase est injecté au build depuis `VITE_SUPABASE_URL`.
+
+Tailles du build de production (gzip) :
+
+| Élément | Avant | Après |
+|---|---|---|
+| Entrée principale | 174,58 kB | 107,82 kB |
+| Supabase | inclus | 55,16 kB (chunk séparé) |
+| CSS | 17,90 kB | 18,25 kB |
+| Écrans lazy | inclus | 3,04 à 7,34 kB chacun |
+
 ## Les commandes utiles
 | Commande | Ce qu'elle fait |
 |---|---|
@@ -154,9 +202,11 @@ bondev/
 ├── index.html        Page de départ
 ├── public/           Logo, icônes et manifest de l'application installable (PWA)
 ├── src/
-│   ├── main.tsx      Démarre l'application
-│   ├── App.tsx       Tous les écrans (connexion, accueil, résultats, entraide, profil…)
-│   ├── lib/          Accès Supabase, recherche, Entraide, progression, GitHub et formatage des dates
+│   ├── main.tsx      Démarre l'application et affiche l'écran d'erreur global
+│   ├── App.tsx       Connexion, accueil, résultats, fiche projet, navigation et chargement des écrans
+│   ├── screens/      Écrans lourds chargés à la demande (Entraide, Profil, Règles, Partage)
+│   ├── components/   Briques partagées (en-tête, boutons, bannière et restriction invité)
+│   ├── lib/          Accès Supabase, recherche, Entraide, progression, mode invité, GitHub et dates
 │   └── index.css     Tout le style (thème sombre/clair, mobile, tablette, ordinateur)
 ├── scripts/
 │   └── catalogue/    Liste des dépôts et générateur du catalogue de départ

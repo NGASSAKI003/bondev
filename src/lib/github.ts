@@ -28,6 +28,12 @@ export class GithubError extends Error {
   }
 }
 
+/** Message calme à afficher quand GitHub ne peut pas fournir le dépôt. */
+export function githubErrorMessage(cause: unknown): string {
+  if (cause instanceof GithubError) return cause.message
+  return 'Impossible de récupérer ce dépôt pour le moment. Remplis les champs à la main.'
+}
+
 const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/
 
 /** Accepte un lien de dépôt GitHub et renvoie son adresse canonique. */

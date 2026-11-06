@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  firstQuestionFormError,
+  firstQuestionFormField,
   formatTimeLeft,
   isHelpTier,
+  parseQuestionTechnologies,
   pointsLabel,
   statusLabel,
   tierLabel,
   translateHelpError,
+  validateQuestionForm,
 } from './help'
 
 const HOUR = 60 * 60 * 1000
@@ -64,6 +68,82 @@ describe('libellés des paliers', () => {
   })
 })
 
+describe('validation du formulaire de question', () => {
+  const validForm = {
+    title: 'Mon paiement Mobile Money échoue',
+    body: 'Le paiement renvoie une erreur 500 quand je valide le formulaire.',
+    technologies: 'React, Node.js',
+    tier: 1 as const,
+    githubUrl: 'https://github.com/ngassaki/bondev',
+  }
+
+  it('accepte un formulaire complet', () => {
+    expect(validateQuestionForm(validForm)).toEqual({})
+  })
+
+  it('indique le titre fautif avec ses limites', () => {
+    expect(
+      validateQuestionForm({ ...validForm, title: 'abc' }).title,
+    ).toBe('Le titre doit contenir entre 5 et 300 caractères.')
+  })
+
+  it('impose une description d’au moins 10 caractères', () => {
+    expect(
+      validateQuestionForm({ ...validForm, body: 'court' }).body,
+    ).toBe(
+      'La description doit contenir au moins 10 caractères pour expliquer ton blocage.',
+    )
+    expect(
+      validateQuestionForm({ ...validForm, body: '' }).body,
+    ).toBe(
+      'La description doit contenir au moins 10 caractères pour expliquer ton blocage.',
+    )
+  })
+
+  it('exige une technologie et un palier valide', () => {
+    expect(
+      validateQuestionForm({ ...validForm, technologies: ' , , ' })
+        .technologies,
+    ).toBe('Choisis au moins une technologie, séparée par des virgules.')
+    expect(validateQuestionForm({ ...validForm, tier: 2 }).tier).toBe(
+      'Choisis un palier valide : 1, 3 ou 6 points.',
+    )
+  })
+
+  it('refuse un lien GitHub qui ne pointe pas vers github.com', () => {
+    expect(
+      validateQuestionForm({
+        ...validForm,
+        githubUrl: 'https://gitlab.com/pseudo/depot',
+      }).githubUrl,
+    ).toBe(
+      'Le lien GitHub doit commencer par https://github.com/ et pointer vers une page.',
+    )
+    expect(
+      validateQuestionForm({ ...validForm, githubUrl: '' }).githubUrl,
+    ).toBeUndefined()
+  })
+
+  it('renvoie le premier champ invalide dans l’ordre du formulaire', () => {
+    const errors = validateQuestionForm({
+      ...validForm,
+      title: '',
+      technologies: '',
+      tier: 0,
+    })
+    expect(firstQuestionFormField(errors)).toBe('title')
+    expect(firstQuestionFormError(errors)).toBe(
+      'Le titre doit contenir entre 5 et 300 caractères.',
+    )
+  })
+
+  it('nettoie les technologies séparées par des virgules', () => {
+    expect(
+      parseQuestionTechnologies(' React, Node.js, React,  , PostgreSQL '),
+    ).toEqual(['React', 'Node.js', 'PostgreSQL'])
+  })
+})
+
 describe('translateHelpError', () => {
   it('traduit les erreurs métier de l’Entraide', () => {
     expect(translateHelpError('Solde insuffisant (0 points, palier 3)')).toBe(
@@ -88,6 +168,15 @@ describe('translateHelpError', () => {
       ),
     ).toBe(
       'Tu as déjà 10 questions ouvertes. Attends qu’une se termine ou retire-en une.',
+    )
+    expect(translateHelpError('Question introuvable')).toBe(
+      'Cette question n’existe plus.',
+    )
+    expect(translateHelpError("La question n'est plus ouverte")).toBe(
+      'Cette question n’est plus ouverte.',
+    )
+    expect(translateHelpError('Non authentifié')).toBe(
+      'Connecte-toi pour faire cette action.',
     )
   })
 

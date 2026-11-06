@@ -1,7 +1,9 @@
 import type { Lang } from '../i18n'
 import {
+  firstQuestionFormError,
   isHelpTier,
   translateHelpError,
+  validateQuestionForm,
   type HelpStatus,
   type HelpTier,
 } from './help'
@@ -1349,25 +1351,22 @@ export async function postQuestion(input: PostQuestionInput): Promise<string> {
   const title = input.title.trim()
   const body = input.body.trim()
   const technologies = cleanList(input.technologies, 10)
-  const githubUrl = cleanOptionalGithubLink(input.githubUrl)
+  const rawGithubUrl = input.githubUrl.trim()
+  const validationMessage = firstQuestionFormError(
+    validateQuestionForm(
+      {
+        title,
+        body,
+        technologies,
+        tier: input.tier,
+        githubUrl: rawGithubUrl,
+      },
+      'fr',
+    ),
+  )
+  if (validationMessage) throw new ApiError(validationMessage)
 
-  if (title.length < 5 || title.length > 300) {
-    throw new ApiError(
-      'Le titre doit contenir entre 5 et 300 caractères.',
-    )
-  }
-  if (!body) {
-    throw new ApiError('Décris ton blocage en quelques mots.')
-  }
-  if (body.length > 10000) {
-    throw new ApiError('La description ne doit pas dépasser 10 000 caractères.')
-  }
-  if (technologies.length === 0) {
-    throw new ApiError('Choisis au moins une technologie.')
-  }
-  if (!isHelpTier(input.tier)) {
-    throw new ApiError('Choisis un palier valide : 1, 3 ou 6 points.')
-  }
+  const githubUrl = cleanOptionalGithubLink(rawGithubUrl)
 
   try {
     await requireUserId()

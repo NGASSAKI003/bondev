@@ -58,3 +58,14 @@ export function formatDateTime(value: number, lang: Lang): string {
     timeStyle: 'short',
   }).format(date)
 }
+
+/** Date courte de l'historique des points. */
+export function formatLedgerDate(value: string, lang: Lang): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
+}

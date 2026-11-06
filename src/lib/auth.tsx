@@ -20,6 +20,12 @@ import {
   type ProfileRow,
   type ProfileStats,
 } from './api'
+import {
+  GUEST_DISPLAY_NAME,
+  GUEST_SIGN_IN_ERROR,
+  generateGuestPseudo,
+  isGuestUser,
+} from './guest'
 import { getSupabase } from './supabase'
 
 type AuthResult = { error: string | null }
@@ -29,6 +35,9 @@ type AuthContextValue = {
   user: User | null
   profile: Profile | null
   loading: boolean
+  isGuest: boolean
+  authNotice: string | null
+  setAuthNotice: (message: string | null) => void
   stats: ProfileStats | null
   statsLoading: boolean
   profileError: string | null
@@ -36,6 +45,7 @@ type AuthContextValue = {
   signInWithGitHub: () => Promise<AuthResult>
   signInWithGoogle: () => Promise<AuthResult>
   signInWithEmail: (email: string) => Promise<AuthResult>
+  signInAnonymously: () => Promise<AuthResult>
   signOut: () => Promise<AuthResult>
   refreshProfile: () => Promise<void>
   refreshStats: () => Promise<void>
@@ -113,9 +123,10 @@ async function ensureProfile(user: User): Promise<Profile> {
   const existing = await selectMine()
   if (existing) return existing
 
+  const anonymous = isGuestUser(user)
   const metadata = metadataObject(user.user_metadata)
   const appMetadata = metadataObject(user.app_metadata)
-  const githubAccount = isGithubAccount(appMetadata)
+  const githubAccount = !anonymous && isGithubAccount(appMetadata)
   const githubName = firstString(metadata, ['user_name', 'preferred_username'])
   const fullName = firstString(metadata, ['full_name', 'name'])
   const email = user.email?.trim() ?? ''
@@ -123,9 +134,11 @@ async function ensureProfile(user: User): Promise<Profile> {
     ? email.slice(0, email.indexOf('@'))
     : email
   const source = (githubAccount ? githubName : '') || emailPrefix || fullName || 'dev'
-  const basePseudo = cleanPseudo(source)
+  const basePseudo = anonymous ? '' : cleanPseudo(source)
 
-  const avatarCandidate = firstString(metadata, ['avatar_url', 'picture'])
+  const avatarCandidate = anonymous
+    ? ''
+    : firstString(metadata, ['avatar_url', 'picture'])
   const avatarUrl = avatarCandidate.startsWith('https://')
     ? avatarCandidate
     : ''
@@ -133,10 +146,16 @@ async function ensureProfile(user: User): Promise<Profile> {
     githubAccount && githubName
       ? `https://github.com/${encodeURIComponent(githubName)}`
       : ''
-  const displayName = (fullName || basePseudo).replace(/\s+/g, ' ').slice(0, 80)
+  const displayName = anonymous
+    ? GUEST_DISPLAY_NAME
+    : (fullName || basePseudo).replace(/\s+/g, ' ').slice(0, 80)
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const pseudo = pseudoForAttempt(basePseudo, attempt)
+    // Un invité reçoit un nouveau suffixe à chaque tentative de conflit.
+    // On n'écrit que dans `profiles` : les 5 points viennent du trigger SQL.
+    const pseudo = anonymous
+      ? generateGuestPseudo()
+      : pseudoForAttempt(basePseudo, attempt)
     const { data, error } = await client
       .from('profiles')
       .insert({
@@ -176,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [statsLoading, setStatsLoading] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [statsError, setStatsError] = useState<string | null>(null)
+  const [authNotice, setAuthNotice] = useState<string | null>(null)
 
   const sequenceRef = useRef(0)
   const currentUserIdRef = useRef<string | null>(null)
@@ -211,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatsLoading(false)
     setProfileError(null)
     setStatsError(null)
+    setAuthNotice(null)
   }, [])
 
   const hydrate = useCallback(
@@ -356,6 +377,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signInWithGitHub = useCallback(async (): Promise<AuthResult> => {
+    setAuthNotice(null)
     try {
       const { error } = await getSupabase().auth.signInWithOAuth({
         provider: 'github',
@@ -398,6 +420,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const signInAnonymously = useCallback(async (): Promise<AuthResult> => {
+    try {
+      const { error } = await getSupabase().auth.signInAnonymously()
+      return { error: error ? GUEST_SIGN_IN_ERROR : null }
+    } catch {
+      return { error: GUEST_SIGN_IN_ERROR }
+    }
+  }, [])
+
   const signOut = useCallback(async (): Promise<AuthResult> => {
     try {
       const { error } = await getSupabase().auth.signOut()
@@ -416,6 +447,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         profile,
         loading,
+        isGuest: isGuestUser(session?.user),
+        authNotice,
+        setAuthNotice,
         stats,
         statsLoading,
         profileError,
@@ -423,6 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithGitHub,
         signInWithGoogle,
         signInWithEmail,
+        signInAnonymously,
         signOut,
         refreshProfile,
         refreshStats,

@@ -42,7 +42,7 @@ VITE_SUPABASE_ANON_KEY=ta-cle-anon-publique
 > [!IMPORTANT]
 > N'utilise **jamais** la clé `service_role` (ou « secret key ») dans le code du navigateur. Elle donne tous les droits et doit rester secrète. La clé `anon public` est faite pour le navigateur : c'est la RLS de la base qui protège les données.
 
-Pour la connexion GitHub, active le fournisseur GitHub dans **Authentication > Providers** et ajoute l'adresse de ton site dans **Authentication > URL Configuration**. En local, ajoute `http://localhost:5173` et `http://127.0.0.1:5173` (l'adresse affichée par Vite peut être l'une ou l'autre). Le bouton Google n'apparaît que si tu ajoutes `VITE_ENABLE_GOOGLE=true` dans `.env.local` et que Google est activé dans Supabase.
+Pour la connexion GitHub, active le fournisseur GitHub dans **Authentication > Providers** et ajoute l'adresse de ton site dans **Authentication > URL Configuration**. En local, ajoute `http://localhost:5173` et `http://127.0.0.1:5173` (l'adresse affichée par Vite peut être l'une ou l'autre). Les connexions Google et par email (lien magique) sont masquées par défaut : ajoute `VITE_ENABLE_GOOGLE=true` ou `VITE_ENABLE_EMAIL=true` dans `.env.local`, puis active le fournisseur correspondant dans Supabase. Redémarre `npm run dev` après toute modification de `.env.local`.
 
 Le fichier `.env.local` est ignoré par Git. Ne mets jamais de clé secrète dans `.env.example`, dans le README ou dans un fichier `src/`.
 

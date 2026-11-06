@@ -88,6 +88,9 @@ const DATA_SAVER_KEY = 'bondev-data-saver'
 const TUTORIAL_KEY_PREFIX = 'bondev-tutorial'
 const SEEN_KEY_PREFIX = 'bondev-progress-seen'
 
+const GOOGLE_LOGIN_ENABLED = import.meta.env.VITE_ENABLE_GOOGLE === 'true'
+const EMAIL_LOGIN_ENABLED = import.meta.env.VITE_ENABLE_EMAIL === 'true'
+
 type Celebration =
   | { key: string; kind: 'level'; level: LevelDefinition }
   | { key: string; kind: 'badge'; family: BadgeFamily; tier: BadgeTier }
@@ -829,7 +832,7 @@ function Login() {
         >
           Continuer avec GitHub
         </Primary>
-        {import.meta.env.VITE_ENABLE_GOOGLE === 'true' && (
+        {GOOGLE_LOGIN_ENABLED && (
           <button
             className="google-btn"
             onClick={() => void handleGoogle()}
@@ -857,7 +860,7 @@ function Login() {
             Continuer avec Google
           </button>
         )}
-        {sent ? (
+        {EMAIL_LOGIN_ENABLED && (sent ? (
           <div className="login-success" role="status">
             <Icon name="mail" size={30} />
             <b>Vérifie ta boîte mail</b>
@@ -914,7 +917,7 @@ function Login() {
             <Icon name="mail" />
             Utiliser mon email
           </button>
-        )}
+        ))}
         <button
           className="email-btn guest-login-btn"
           onClick={() => void handleGuest()}

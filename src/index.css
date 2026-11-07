@@ -29,7 +29,7 @@ body{overflow-x:hidden}.phone{overflow:visible}.screen{padding-top:max(48px,env(
 @media(min-width:640px){
   .shell{display:block;background:#050816}.phone{width:100%;min-height:100vh;margin:0;border:0;border-radius:0;box-shadow:none;background:#050816;padding-left:88px}.content{min-height:100vh}.screen{padding:48px 32px 64px;max-width:1100px;margin:0 auto}.topbar{padding-top:0}
   .nav{position:fixed;left:0;top:0;bottom:0;width:88px;height:100vh;padding:22px 10px;display:flex;flex-direction:column;align-items:stretch;gap:8px;border:0;border-right:1px solid #ffffff14;border-radius:0}.nav-logo{display:flex!important;justify-content:center;margin-bottom:26px}.nav-logo img{width:48px;height:48px}.nav-logo b{display:none}.nav>button{min-height:72px}.nav .add{width:auto;height:auto;margin:0;background:none;box-shadow:none}.nav>.points-card{display:none!important}.nav .states-link{display:flex!important;margin-top:auto;font-size:12px;color:#7784a1}
-  .tablet-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:28px}.project-grid{grid-template-columns:1fr 1fr}.project-grid .project{min-height:150px}.login{width:480px;min-height:auto;margin:10vh auto 0;padding:42px;border:1px solid #ffffff1a;background:#ffffff0a;border-radius:28px}.login-brand{margin:0}.orb{display:none}.login-actions{margin-top:44px}.filter-panel.open{position:fixed;z-index:30;display:block;right:0;top:0;height:100vh;width:360px;background:#080c1c;padding:22px;box-shadow:-20px 0 60px #0009}.filter-panel.open .filter-close{display:block;min-height:48px;border:0;background:none;color:#76b7ff;margin-left:auto}.filter-panel.open .filters{display:block}.help-heading{margin-top:28px}.help-layout.show-detail .question-list{display:none}.profile-layout{max-width:720px;margin:0 auto}
+  .tablet-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-top:28px}.project-grid{grid-template-columns:1fr 1fr}.project-grid .project{min-height:150px}.login{width:480px;min-height:auto;margin:10vh auto 0;padding:42px;border:1px solid #ffffff1a;background:#ffffff0a;border-radius:28px}.login-brand{margin:0}.orb{display:none}.login-actions{margin-top:44px}.filter-panel.open{position:fixed;z-index:30;display:block;right:0;top:0;height:100vh;width:360px;background:#080c1c;padding:22px;box-shadow:-20px 0 60px #0009}.filter-panel.open .filter-close{display:block;min-height:48px;border:0;background:none;color:#76b7ff;margin-left:auto}.filter-panel.open .filters{display:block}.help-heading{margin-top:28px}.help-layout.show-detail .question-list{display:none}.profile-layout{max-width:720px;margin:0 auto}
 }
 
 @media(min-width:900px) and (max-width:1024px) and (orientation:landscape){
@@ -204,7 +204,7 @@ body{overflow-x:hidden}.phone{overflow:visible}.screen{padding-top:max(48px,env(
 .top-actions .points{justify-self:auto}.theme-toggle{min-width:48px;height:40px;padding:0 11px;border:1px solid #ffffff1a;background:#ffffff0f;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:7px;color:#a8b3cf;font-size:12px;font-weight:600}.theme-toggle span{display:none}.login-theme{position:absolute;z-index:4;right:20px;top:max(20px,env(safe-area-inset-top))}.login-theme .theme-toggle span{display:inline}
 
 /* Premium, restrained motion */
-.screen{animation:screen-enter .52s cubic-bezier(.22,1,.36,1) both}
+.screen{animation:screen-enter .52s cubic-bezier(.22,1,.36,1)}
 .glass,.project,.request,.primary,.secondary,.searchbox,.chips button,.nav button,.theme-toggle,.add-sheet>button{transition:transform .38s cubic-bezier(.22,1,.36,1),box-shadow .38s cubic-bezier(.22,1,.36,1),background-color .28s ease,border-color .28s ease,color .28s ease,opacity .28s ease}
 .list>*{animation:card-enter .5s cubic-bezier(.22,1,.36,1) both}.list>*:nth-child(2){animation-delay:.06s}.list>*:nth-child(3){animation-delay:.12s}.list>*:nth-child(4){animation-delay:.18s}
 .primary:active,.secondary:active,.nav button:active,.theme-toggle:active,.add-sheet>button:active{transform:scale(.965);transition-duration:.12s}.sheet-backdrop{animation:fade-in .28s ease both}.add-sheet{animation:sheet-up .52s cubic-bezier(.22,1,.36,1) both}.filter-panel.open{animation:panel-in .45s cubic-bezier(.22,1,.36,1) both}.success{animation:success-pop .65s cubic-bezier(.2,1.4,.4,1) both}.level i,.stats>i span,.specialties i b{transform-origin:left;animation:progress-grow .85s .18s cubic-bezier(.22,1,.36,1) both}.theme-toggle svg{transition:transform .5s cubic-bezier(.22,1,.36,1)}.theme-toggle:active svg{transform:rotate(25deg)}
@@ -212,7 +212,7 @@ body{overflow-x:hidden}.phone{overflow:visible}.screen{padding-top:max(48px,env(
 @keyframes card-enter{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @keyframes fade-in{from{opacity:0}to{opacity:1}}
 @keyframes sheet-up{from{transform:translateY(100%)}to{transform:none}}
-@keyframes panel-in{from{opacity:0;transform:translateX(35px)}to{opacity:1;transform:none}}
+@keyframes panel-in{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
 @keyframes success-pop{from{opacity:0;transform:scale(.72)}to{opacity:1;transform:scale(1)}}
 @keyframes progress-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @media(hover:hover){.project:hover,.request:hover,.add-sheet>button:hover{transform:translateY(-3px);border-color:#5998ff55;box-shadow:0 18px 42px #0003}.primary:hover{transform:translateY(-2px);box-shadow:0 18px 38px #2f6bff4d}.nav button:hover{background:#ffffff0a;color:#8fc8ff}}
@@ -325,7 +325,8 @@ html[data-theme="dark"] .theme-toggle{color:#a8b3cf}
 .nav-toggle{display:none}
 @media(min-width:640px){
 .shell .phone:not([data-nav=none]){padding-left:72px;transition:padding-left .34s cubic-bezier(.22,1,.36,1)}
-.shell .nav{--open:0;width:calc(72px + 188px*var(--open));padding:16px 12px;gap:6px;overflow:hidden;z-index:30;transition:width .32s cubic-bezier(.22,1,.36,1),box-shadow .32s ease}
+.shell .nav{--open:0;width:calc(72px + 188px*var(--open));padding:16px 12px;gap:6px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;z-index:30;transition:width .32s cubic-bezier(.22,1,.36,1),box-shadow .32s ease}
+.shell .nav::-webkit-scrollbar{display:none}
 .shell .phone[data-nav=open] .nav,.shell .nav.peek{--open:1}
 .shell .nav.peek:not(:is(.phone[data-nav=open] .nav)){box-shadow:14px 0 44px #0007}
 .shell .nav>button,.shell .nav-toggle{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:14px;width:100%;height:48px;min-height:48px;padding:0 13px;border-radius:14px;white-space:nowrap;overflow:hidden}
@@ -581,8 +582,8 @@ html[data-theme=light] .skeleton-block,html[data-theme=light] .skeleton-line,htm
 .thread-github{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:12px;padding:0 13px;border:1px solid #4f92ff40;border-radius:12px;background:#2f6bff12;color:#83c0ff;font-size:13px;text-decoration:none}
 .thread-github svg:last-child{opacity:.65}
 .thread-meta{margin-top:16px}
-.help-notice{margin-top:16px;padding:14px 16px;border:1px solid #4f92ff2e;border-radius:14px;background:#2f6bff14;color:#a8b3cf;font-size:13px;line-height:1.55}
-.help-notice.success{border-color:#38d99638;background:#38d99610;color:#9fe8c8}
+.help-notice{width:100%;max-width:100%;min-width:0;margin-top:16px;padding:14px 16px;border:1px solid #4f92ff2e;border-radius:14px;background:#2f6bff14;color:#a8b3cf;font-size:13px;line-height:1.55;overflow-wrap:anywhere;word-break:break-word}
+.help-notice.resolved-note{border-color:#38d99638;background:#38d99610;color:#9fe8c8}
 .help-notice.animated{animation:celebration-in .4s cubic-bezier(.22,1,.36,1) both}
 .thread-actions{display:flex;justify-content:flex-end;margin-top:14px}
 .withdraw-btn{grid-column:auto;width:auto;min-height:42px;margin:0;padding:0 14px;border-color:#ff7b5c40;background:#ff7b5c12;color:#ffb4a3;font-size:12px}
@@ -668,7 +669,7 @@ html[data-theme=light] .question-meta span{background:#17366d0d;color:#65728d}
 html[data-theme=light] .thread-body{color:#43516c}
 html[data-theme=light] .thread-github{background:#eef4ff;color:#225fc1;border-color:#2f6bff36}
 html[data-theme=light] .help-notice{background:#eef4ff;border-color:#2f6bff2e;color:#4f5f7d}
-html[data-theme=light] .help-notice.success{background:#e8f8f1;border-color:#38d99645;color:#16794f}
+html[data-theme=light] .help-notice.resolved-note{background:#e8f8f1;border-color:#38d99645;color:#16794f}
 html[data-theme=light] .withdraw-btn{background:#fff0ec;border-color:#b3473340;color:#b34733}
 html[data-theme=light] .answer-body{color:#43516c}
 html[data-theme=light] .answer-head small,html[data-theme=light] .answer-head em{color:#65728d}
@@ -920,3 +921,252 @@ html[data-theme=light] .guest-banner-cta{color:#225fc1;background:#2f6bff0d;bord
 html[data-theme=light] .guest-banner-close{color:#697896}
 html[data-theme=light] .guest-restriction p{color:#586682}
 html[data-theme=light] .guest-restriction .textbtn{color:#225fc1}
+
+/* ==========================================================================
+   Passe responsive 320 -> 1920 : cibles, débordements, safe areas
+   ========================================================================== */
+
+:root{
+  --z-nav:30;
+  --z-filter:45;
+  --z-sheet:50;
+  --z-toast:60;
+  --z-net:65;
+  --z-tutorial:80;
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-right:env(safe-area-inset-right,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+}
+
+/* Hauteurs dynamiques : la barre d'URL mobile ne coupe plus les feuilles. */
+.shell,.phone,.login{min-height:100vh;min-height:100dvh}
+@media(min-width:640px){
+  .shell .nav{height:100vh;height:100dvh}
+}
+
+/* Le contenu ne passe jamais sous la navigation ni sous la barre système. */
+.screen{padding-bottom:calc(116px + var(--safe-bottom))}
+@media(min-width:640px){.screen{padding-bottom:calc(64px + var(--safe-bottom))}}
+@media(min-width:1025px){.screen{padding-bottom:calc(70px + var(--safe-bottom))}}
+
+/* Empilement cohérent des couches. */
+.nav{z-index:var(--z-nav)}
+.filter-panel.open{z-index:var(--z-filter)}
+.sheet-backdrop{z-index:var(--z-sheet)}
+.celebration-layer{z-index:var(--z-toast)}
+.net-pill{z-index:var(--z-net)}
+.tutorial-layer{z-index:var(--z-tutorial)}
+
+/* Bandeau invité : aligné sur le contenu, texte lisible, actions dessous. */
+.guest-banner{
+  width:calc(100% - 40px);
+  max-width:1036px;
+  min-width:0;
+  margin:calc(10px + var(--safe-top)) auto 0;
+  padding:14px 16px;
+  flex-wrap:wrap;
+  row-gap:10px;
+}
+.guest-banner>div:first-child{min-width:0;flex:1 1 280px}
+.guest-banner p{overflow-wrap:anywhere}
+.guest-banner-actions{flex-wrap:wrap;justify-content:flex-end;row-gap:6px;margin-left:auto}
+.guest-banner-cta{min-height:44px;line-height:1.25;text-align:left;white-space:normal}
+.guest-banner-close{width:44px;height:44px;min-width:44px;flex:none}
+@media(max-width:639px){
+  .guest-banner{flex-direction:column;align-items:stretch;gap:10px}
+  .guest-banner-actions{justify-content:space-between}
+  .guest-banner-cta{flex:1 1 auto}
+}
+@media(min-width:640px){
+  .guest-banner{width:calc(100% - 64px);margin-top:calc(16px + var(--safe-top))}
+}
+@media(min-width:1025px){
+  .guest-banner{width:calc(100% - 80px);max-width:1100px}
+}
+
+/* Puces et onglets : retour à la ligne au lieu d'une coupe horizontale. */
+.chips-wrap{overflow:visible}
+.chips-wrap:after{display:none}
+.chips{flex-wrap:wrap;overflow-x:visible;padding-right:0}
+.chips button{max-width:100%;white-space:normal;height:auto;min-height:48px;line-height:1.3}
+.stats>div{min-width:0}
+.stats>div>b,.stats>div>span{overflow-wrap:anywhere}
+.stats>div>b.stats-level{white-space:normal}
+.impact-strip>div{min-width:0}
+.impact-strip b,.impact-strip small{overflow-wrap:anywhere}
+.help-tabs{flex-wrap:wrap;overflow-x:visible;overflow-y:visible}
+.help-tabs button{min-height:44px}
+.help-heading{flex-wrap:wrap;gap:10px}
+.help-heading h2{min-width:0;overflow-wrap:anywhere}
+
+/* Cibles tactiles : 44 px minimum sans casser la densité visuelle. */
+.top-actions .points{min-width:44px;width:44px}
+.search-submit{width:44px;height:44px}
+.query-clear{width:44px;height:44px}
+.query .filter-trigger{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;font-size:12px;font-weight:600;color:#78b6ff}
+html[data-theme=light] .query .filter-trigger{color:#225fc1}
+html[data-theme=light] .filters label,
+html[data-theme=light] .filters legend{color:#53627e}
+html[data-theme=light] .filter-panel.open .filter-close{color:#225fc1}
+.link-btn{min-height:44px;display:inline-flex;align-items:center;padding:0 2px}
+.tutorial-top .link-btn{min-height:44px;min-width:44px;justify-content:center}
+.week-head .link-btn{min-height:44px}
+.week-state .link-btn{min-height:44px;display:inline-flex;align-items:center}
+.lang-toggle button{min-width:44px;min-height:44px;height:44px}
+.iconbtn,.detail-back,.textbtn{min-height:44px}
+.arrow{width:44px;min-width:44px;height:44px}
+.section-title button{padding-top:14px;padding-bottom:14px}
+.guest-restriction .textbtn{min-height:44px}
+
+/* Le commutateur garde son apparence mais gagne une zone tactile de 44 px. */
+.switch{
+  position:relative;
+  width:52px;
+  min-width:52px;
+  height:44px;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+}
+.switch::before{
+  content:"";
+  position:absolute;
+  left:2px;right:2px;top:8px;bottom:8px;
+  border-radius:99px;
+  background:#ffffff14;
+  border:1px solid #ffffff26;
+  transition:background .2s ease,border-color .2s ease;
+}
+.switch span{
+  position:absolute;
+  left:9px;top:50%;
+  width:20px;height:20px;
+  margin:0;
+  transform:translateY(-50%);
+}
+.switch.on{background:transparent;border-color:transparent}
+.switch.on::before{background:#2f6bff;border-color:#5a8dff}
+.switch.on span{transform:translate(20px,-50%);background:#fff}
+html[data-theme=light] .switch{background:transparent}
+html[data-theme=light] .switch::before{background:#dbe3f2;border-color:#18346b24}
+html[data-theme=light] .switch.on::before{background:#2f6bff;border-color:#2f6bff}
+
+/* Menu latéral : les trois états poussent le contenu sans recouvrement. */
+@media(min-width:640px) and (max-width:1024px){
+  .shell .phone[data-nav=open]{padding-left:260px}
+}
+
+/* Panneau filtres mobile : jamais plus large que l'écran, défilable. */
+@media(max-width:1024px){
+  .filter-panel.open{
+    position:fixed;
+    display:block;
+    inset:0 0 0 auto;
+    width:min(360px,100%);
+    max-width:100%;
+    height:100vh;
+    height:100dvh;
+    padding:22px max(22px,var(--safe-right)) calc(22px + var(--safe-bottom)) 22px;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    background:#080c1c;
+    box-shadow:-20px 0 60px #0009;
+  }
+  .filter-panel.open .filter-close{display:block;min-height:48px;border:0;background:none;color:#76b7ff;margin-left:auto}
+  .filter-panel.open .filters{display:block}
+}
+
+/* Feuille Ajouter, tutoriel et toasts : jamais sous la barre système. */
+.add-sheet{padding-bottom:calc(24px + var(--safe-bottom))}
+.tutorial-layer{max-height:100vh;max-height:100dvh}
+.celebration-layer{bottom:max(96px,calc(var(--safe-bottom) + 96px))}
+
+/* Textes longs : titres, pseudos, URL et réponses passent à la ligne. */
+.thread-question h2,
+.question-detail h2,
+.question-card h3,
+.request h3,
+.project h1,
+.project h3,
+.project p,
+.request p,
+.project .why,
+.thread-body,
+.thread-github,
+.answer-body,
+.answer-head b,
+.author-line b,
+.author-line small,
+.help-notice,
+.guest-restriction h2,
+.guest-restriction p,
+.profile-head h1,
+.profile-head p,
+.how-table-card td,
+.filters label,
+.lang-row,
+.celebration-toast p{overflow-wrap:anywhere;word-break:break-word}
+.filters label{min-height:44px}
+
+/* Tableaux pédagogiques : lisibles sans élargir la page sur mobile. */
+@media(max-width:639px){
+  .how-table-card table{table-layout:fixed}
+  .how-table-card td:first-child{width:60%}
+  .how-table-card td:last-child{width:40%;white-space:normal}
+  .badge-table th:first-child,.badge-table td:first-child{width:40%}
+  .badge-table th:not(:first-child),.badge-table td:not(:first-child){width:20%}
+  .badge-table th,.badge-table td{overflow-wrap:anywhere}
+}
+
+/* Profil : le badge de semaine ne comprime plus le compteur. */
+.streak-head{flex-wrap:wrap}
+.streak-head>div{flex:1 1 120px;min-width:120px}
+.streak-head em{flex:0 1 auto;min-width:0;max-width:100%;margin-left:auto}
+
+/* Impact communauté : les 3 tuiles se réduisent sans pousser la page. */
+.impact div{min-width:0}
+.impact b,.impact span{overflow-wrap:anywhere}
+
+/* Cartes tablette (points et étoiles) : une colonne quand la place manque. */
+.tablet-cards>*{min-width:0}
+.points-card .section-title,.rising .section-title{flex-wrap:wrap;gap:2px 8px}
+.points-card>strong,.points-card .section-title span{overflow-wrap:anywhere}
+.rising-person{min-width:0}
+.rising-person p{min-width:0}
+.rising-person p b,.rising-person p span{overflow-wrap:anywhere}
+.rising-person em{flex:none}
+
+/* Avatars à initiales : la pastille ne se comprime pas dans une ligne flex. */
+.author-line>span{flex:none}
+
+/* Formulaires : les colonnes de grille et les champs peuvent se réduire. */
+.form label,.form label>*{min-width:0}
+.form label>span,.field-help{overflow-wrap:anywhere}
+.form input,.form textarea{min-width:0}
+
+/* Enfants flex/grid : autorise la compression au lieu du débordement. */
+.content,.screen,.project-body,.thread-question,.question-card,.request,.answer,.author-line>p,
+.help-layout>*,.results-layout>*,.home-layout>*,.profile-layout>*,.project-grid>*,
+.question-card-top>*,.question-card-tags>*,.thread-actions>*,.answer-actions>*,
+.guest-banner>div,.filters label>span,.lang-row>*,.section-title>*{min-width:0}
+
+/* Champs : restent visibles quand le clavier virtuel s'ouvre. */
+html{scroll-padding-bottom:140px}
+input,textarea,select,.query-input,.form textarea{scroll-margin-bottom:140px}
+
+/* Grands écrans : grille de projets en 3 colonnes quand la place le permet. */
+@media(min-width:1440px){
+  .project-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* 320 px : marges et rythme resserrés sans couper les libellés. */
+@media(max-width:359px){
+  .screen{padding-left:16px;padding-right:16px}
+  .guest-banner{width:calc(100% - 32px)}
+  .hero h1{font-size:clamp(28px,9vw,34px)}
+  .help-heading h2{font-size:21px}
+  .help-tabs button{padding:0 11px;font-size:12px}
+  .filter-chip{padding:0 11px;font-size:11px}
+}

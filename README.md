@@ -186,6 +186,48 @@ Tailles du build de production (gzip) :
 | CSS | 17,90 kB | 18,25 kB |
 | Écrans lazy | inclus | 3,04 à 7,34 kB chacun |
 
+## Affichage responsive
+
+L'interface est vérifiée de **320 px à 1920 px**, en thèmes sombre et clair, sans défilement horizontal ni texte coupé.
+
+| Largeur | Appareil visé |
+|---|---|
+| 320 / 360 px | petits téléphones, portrait |
+| 390 / 412 / 480 px | iPhone et Android courants, portrait et paysage |
+| 768 px | tablette portrait |
+| 1024 px | tablette paysage |
+| 1280 / 1440 / 1920 px | ordinateur |
+
+Les écrans suivants sont contrôlés à chaque largeur : accueil, résultats de recherche, fiche projet, partage de projet, Entraide, fil de question (ouverte et résolue), poser une question, profil, règles, états vides et hors-ligne, feuille « Ajouter ». Le panneau de filtres, le tutoriel, la bannière invité et les trois états du menu latéral (fermé, survolé, épinglé) sont aussi vérifiés. Deux formats paysage de téléphone (667 × 375 et 844 × 390) complètent l'audit.
+
+Le fil de question est testé dans ses quatre états (ouverte, résolue, retirée, expirée), avec un titre long, un pseudo long, une URL longue, 0, 1 ou 20 réponses, avec et sans preuve GitHub. Le texte du navigateur est également contrôlé à **130 %** et **200 %** aux largeurs mobiles.
+
+Règles appliquées dans `src/index.css` :
+
+- `min-width: 0` sur les enfants flex/grid, `overflow-wrap: anywhere` sur les titres, pseudos, URL et réponses ;
+- puces, badges et onglets en `flex-wrap` ; blocs d'information en pleine largeur ;
+- `clamp()` pour les grands titres et largeur maximale du contenu sur les grands écrans ;
+- grille de projets en 1, 2 puis 3 colonnes ;
+- échelle de `z-index` en variables CSS (`--z-nav`, `--z-filter`, `--z-sheet`, `--z-toast`, `--z-net`, `--z-tutorial`) ;
+- `100dvh`, `env(safe-area-inset-*)` et marges basses pour que le contenu ne passe jamais sous la navigation ;
+- cibles tactiles d'au moins 44 px ;
+- bandeau « Résolue grâce à @pseudo » en pleine largeur sous les puces, et message « Merci ! … » empilé dessous ;
+- panneau de filtres mobile en `position: fixed`, largeur `min(360px, 100%)`, défilement interne et au-dessus de la navigation ;
+- en paysage de téléphone, le menu latéral défile verticalement et les cartes tablette passent d'elles-mêmes à une colonne quand le contenu devient étroit.
+
+Les captures avant/après sont dans [`docs/screens/responsive/`](docs/screens/responsive/). Les fichiers `before-thread-resolved-*` et `after-thread-resolved-*` montrent le bandeau corrigé ; les fichiers `final-*` couvrent les largeurs 320, 390, 768, 1024 et 1920 px, les thèmes sombre et clair, les états du fil, le panneau de filtres et les trois états du menu.
+
+> [!NOTE]
+> Les états « retirée » et « expirée » ne sont pas disponibles dans les données de démonstration actuelles : ils ont été simulés dans le DOM pour vérifier leur mise en page, pas rejoués depuis Supabase. Les tests à 200 % ont été faits dans Chromium en agrandissant les polices calculées, pas avec le zoom texte natif de chaque navigateur. Safari/iOS, le clavier virtuel réel et les lecteurs d'écran n'ont pas été testés sur appareil physique. Un placeholder de champ de recherche sur une seule ligne reste tronqué nativement à 320 px ; le libellé complet reste disponible dans l'attribut `placeholder`.
+
+Contrôles avant livraison :
+
+```bash
+npm test
+npx tsc --noEmit
+npm run build
+```
+
 ## Les commandes utiles
 | Commande | Ce qu'elle fait |
 |---|---|

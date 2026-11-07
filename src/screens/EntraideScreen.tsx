@@ -791,7 +791,7 @@ export function QuestionThread({
           </div>
         )}
         {question.status === 'resolved' && validatedAnswer && (
-          <div className="help-notice success animated">
+          <div className="help-notice resolved-note animated">
             {lang === 'en'
               ? `Solved by @${validatedAnswer.author.pseudo}. The validated answer is highlighted below.`
               : `Résolue grâce à @${validatedAnswer.author.pseudo}. La réponse validée est mise en avant ci-dessous.`}

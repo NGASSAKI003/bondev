@@ -21,3 +21,6 @@ logs/
 # beside it.
 /.plugins/
 /.opencode-skills/
+
+# Captures d'écran locales : non versionnées.
+docs/screens/

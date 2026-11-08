@@ -15,7 +15,64 @@ export function initialsFor(name: string, pseudo: string): string {
 }
 
 
-export function Icon({ name, size = 22 }: { name: string; size?: number }) {
+const FILLED_ICONS: Record<string, ReactNode> = {
+  home: (
+    <path d="M3 10.7a2 2 0 0 1 .74-1.55l7-6a2 2 0 0 1 2.52 0l7 6A2 2 0 0 1 21 10.7V19a2 2 0 0 1-2 2h-4.6v-5.2a2.4 2.4 0 0 0-4.8 0V21H5a2 2 0 0 1-2-2Z" />
+  ),
+  help: (
+    <path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5Z" />
+  ),
+  user: (
+    <>
+      <circle cx="12" cy="8" r="4.2" />
+      <path d="M4.4 21a7.6 7.6 0 0 1 15.2 0Z" />
+    </>
+  ),
+  book: (
+    <path d="M6.5 2A2.5 2.5 0 0 0 4 4.5v15A2.5 2.5 0 0 0 6.5 22H20V2Zm0 2H18v14H6.5a2.5 2.5 0 0 0-.5.05V4.5A.5.5 0 0 1 6.5 4Z" />
+  ),
+  plus: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v8M8 12h8" stroke="var(--bd-surface, #0c1124)" strokeWidth="2.2" strokeLinecap="round" />
+    </>
+  ),
+}
+
+/** Dégradé de marque partagé par les icônes et les contours SVG. */
+export function BrandGradientDefs() {
+  return (
+    <svg
+      width="0"
+      height="0"
+      aria-hidden="true"
+      focusable="false"
+      style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}
+    >
+      <defs>
+        <linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#1EA7FF" />
+          <stop offset="0.54" stopColor="#2F6BFF" />
+          <stop offset="1" stopColor="#7B3FF2" />
+        </linearGradient>
+      </defs>
+    </svg>
+  )
+}
+
+export function Icon({
+  name,
+  size = 22,
+  filled = false,
+  gradient = false,
+}: {
+  name: string
+  size?: number
+  /** Icône pleine, utilisée pour l’état actif de la navigation. */
+  filled?: boolean
+  /** Trait peint avec le dégradé de marque. */
+  gradient?: boolean
+}) {
   const p: Record<string, ReactNode> = {
     home: (
       <>
@@ -149,19 +206,20 @@ export function Icon({ name, size = 22 }: { name: string; size?: number }) {
       </>
     ),
   }
+  const isFilled = filled && Boolean(FILLED_ICONS[name])
   return (
     <svg
       aria-hidden="true"
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
+      fill={isFilled ? 'url(#brand-gradient)' : 'none'}
+      stroke={isFilled ? 'none' : gradient ? 'url(#brand-gradient)' : 'currentColor'}
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {p[name]}
+      {isFilled ? FILLED_ICONS[name] : p[name]}
     </svg>
   )
 }
@@ -178,12 +236,17 @@ export function ThemeToggle() {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light'
     document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
     localStorage.setItem('bondev-theme', dark ? 'dark' : 'light')
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', dark ? '#050816' : '#eef3ff')
   }, [dark])
   return (
     <button
       className="theme-toggle"
       onClick={() => setDark(!dark)}
       aria-label={`Passer au thème ${dark ? 'clair' : 'sombre'}`}
+      title={`Passer au thème ${dark ? 'clair' : 'sombre'}`}
+      type="button"
     >
       <Icon name={dark ? 'sun' : 'moon'} size={18} />
       <span>{dark ? 'Clair' : 'Sombre'}</span>
@@ -195,12 +258,14 @@ export function Primary({
   onClick,
   icon,
   disabled = false,
+  loading = false,
   type = 'button',
 }: {
   children: ReactNode
   onClick?: () => void
   icon?: string
   disabled?: boolean
+  loading?: boolean
   type?: 'button' | 'submit'
 }) {
   return (
@@ -209,6 +274,7 @@ export function Primary({
       onClick={onClick}
       disabled={disabled}
       type={type}
+      aria-busy={loading || undefined}
     >
       {icon && <Icon name={icon} />} {children}
     </button>

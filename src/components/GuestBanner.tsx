@@ -84,6 +84,7 @@ export function GuestBanner() {
           type="button"
           onClick={() => void upgrade()}
           disabled={busy}
+          aria-busy={busy || undefined}
         >
           <Icon name="github" size={16} />
           {GUEST_UPGRADE_LABEL}

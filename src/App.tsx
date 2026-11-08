@@ -44,6 +44,7 @@ import { normalizeSearchText, searchProjects } from './lib/search'
 import { GuestBanner } from './components/GuestBanner'
 import {
   AccountLangToggle,
+  BrandGradientDefs,
   Header,
   Icon,
   Primary,
@@ -829,6 +830,7 @@ function Login() {
           onClick={() => void handleGitHub()}
           icon="github"
           disabled={busy !== null}
+          loading={busy === 'github'}
         >
           Continuer avec GitHub
         </Primary>
@@ -896,6 +898,7 @@ function Login() {
               className="email-btn"
               type="submit"
               disabled={busy !== null}
+              aria-busy={busy === 'email' || undefined}
             >
               <Icon name="mail" />
               {busy === 'email' ? 'Envoi…' : 'Envoyer le lien'}
@@ -922,6 +925,7 @@ function Login() {
           className="email-btn guest-login-btn"
           onClick={() => void handleGuest()}
           disabled={busy !== null}
+          aria-busy={busy === 'guest' || undefined}
           type="button"
         >
           <Icon name="user" />
@@ -1006,6 +1010,7 @@ function Home({
             <form className="searchbox search-form" onSubmit={submit}>
               <Icon name="search" />
               <input
+                type="search"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="Décris ton besoin : ex. gérer le stock d’une boutique"
@@ -1014,6 +1019,10 @@ function Home({
                     ? 'Search the project catalogue'
                     : 'Rechercher dans le catalogue'
                 }
+                autoComplete="off"
+                inputMode="search"
+                enterKeyHint="search"
+                spellCheck={false}
               />
               <kbd>Ctrl + K</kbd>
               <button
@@ -1021,7 +1030,7 @@ function Home({
                 className="search-submit"
                 aria-label={lang === 'en' ? 'Search' : 'Rechercher'}
               >
-                <Icon name="arrow" size={18} />
+                <Icon name="search" size={20} gradient />
               </button>
             </form>
             <p className="smart">
@@ -1345,6 +1354,7 @@ function Results({
         <input
           id="catalogue-search"
           className="query-input"
+          type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Décris ton besoin : ex. gérer le stock d’une boutique"
@@ -1353,6 +1363,10 @@ function Results({
               ? 'Search the project catalogue'
               : 'Rechercher dans le catalogue'
           }
+          autoComplete="off"
+          inputMode="search"
+          enterKeyHint="search"
+          spellCheck={false}
         />
         {query && (
           <button
@@ -1721,6 +1735,7 @@ function ProjectDetail({
               className="secondary served-btn"
               onClick={() => void handleUsed()}
               disabled={!canUse}
+              aria-busy={busy || undefined}
               type="button"
             >
               <Icon name="check" size={18} />{' '}
@@ -2035,6 +2050,14 @@ function Nav({
 }) {
   const [peek, setPeek] = useState(false)
   const timer = useRef<number>(0)
+  const navRef = useRef<HTMLElement>(null)
+  const [pill, setPill] = useState({
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+    ready: false,
+  })
   const pick = (f: () => void) => () => {
     if (window.innerWidth < 1025) setPinned(false)
     setPeek(false)
@@ -2042,13 +2065,71 @@ function Nav({
   }
   const items: [Screen, string, string][] = [
     ['home', 'home', 'Accueil'],
-    ['help', 'handshake', 'Entraide'],
+    ['help', 'help', 'Entraide'],
     ['add', 'plus', 'Ajouter'],
     ['profile', 'user', 'Profil'],
     ['how', 'book', 'Règles'],
   ]
+  const isActive = (screen: Screen) =>
+    active === screen ||
+    ((active === 'results' || active === 'project') && screen === 'home') ||
+    (active === 'question' && screen === 'help') ||
+    (active === 'share' && screen === 'add')
+  const activeKey = items.find(([screen]) => isActive(screen))?.[0] ?? 'home'
+
+  // L'indicateur est mesuré dans le DOM : il suit les trois états du menu
+  // (réduit, survolé, ouvert) et les changements de largeur.
+  useEffect(() => {
+    const nav = navRef.current
+    if (!nav) return
+    let frame = 0
+    const measure = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        const button = nav.querySelector<HTMLElement>(
+          `[data-nav-item="${activeKey}"]`,
+        )
+        if (!button) return
+        const navRect = nav.getBoundingClientRect()
+        const rect = button.getBoundingClientRect()
+        setPill({
+          left: rect.left - navRect.left,
+          top: rect.top - navRect.top,
+          width: rect.width,
+          height: rect.height,
+          ready: true,
+        })
+      })
+    }
+    measure()
+    const settle = window.setTimeout(measure, 180)
+    const onLoad = () => measure()
+    window.addEventListener('load', onLoad)
+    document.fonts?.ready.then(onLoad).catch(() => undefined)
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(measure)
+    observer?.observe(nav)
+    const button = nav.querySelector<HTMLElement>(
+      `[data-nav-item="${activeKey}"]`,
+    )
+    if (button) observer?.observe(button)
+    nav.addEventListener('transitionend', measure)
+    window.addEventListener('resize', measure)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(settle)
+      observer?.disconnect()
+      window.removeEventListener('load', onLoad)
+      nav.removeEventListener('transitionend', measure)
+      window.removeEventListener('resize', measure)
+    }
+  }, [activeKey, pinned, peek])
+
   return (
     <nav
+      ref={navRef}
       className={`nav ${peek ? 'peek' : ''}`}
       aria-label="Navigation principale"
       onPointerEnter={(e) => {
@@ -2062,6 +2143,16 @@ function Nav({
         setPeek(false)
       }}
     >
+      <span
+        className={`nav-indicator ${pill.ready ? 'ready' : ''}`}
+        aria-hidden="true"
+        style={{
+          left: pill.left,
+          top: pill.top,
+          width: pill.width,
+          height: pill.height,
+        }}
+      />
       <div className="nav-logo">
         <img
           src="/assets/bondev-logo-96.webp"
@@ -2073,27 +2164,33 @@ function Nav({
         />
         <b>Bondev</b>
       </div>
-      {items.map((x) => (
-        <button
-          key={x[0]}
-          className={
-            active === x[0] ||
-            ((active === 'results' || active === 'project') && x[0] === 'home') ||
-            (active === 'question' && x[0] === 'help') ||
-            (active === 'share' && x[0] === 'add')
-              ? 'active'
-              : ''
-          }
-          onClick={pick(() => (x[0] === 'add' ? onAdd() : go(x[0])))}
-        >
-          <span className={x[0] === 'add' ? 'add' : ''}>
-            <Icon name={x[1]} />
-          </span>
-          <small>{x[2]}</small>
-        </button>
-      ))}
+      {items.map((x) => {
+        const selected = isActive(x[0])
+        return (
+          <button
+            key={x[0]}
+            type="button"
+            data-nav-item={x[0]}
+            className={selected ? 'active' : ''}
+            aria-current={selected ? 'page' : undefined}
+            onClick={pick(() => (x[0] === 'add' ? onAdd() : go(x[0])))}
+          >
+            <span className={x[0] === 'add' ? 'add' : ''}>
+              <Icon
+                name={x[1]}
+                filled={selected && x[0] !== 'add'}
+              />
+            </span>
+            <small>{x[2]}</small>
+          </button>
+        )
+      })}
       <PointsCard />
-      <button className="states-link" onClick={() => go('states')}>
+      <button
+        className="states-link"
+        onClick={() => go('states')}
+        type="button"
+      >
         Voir les états
       </button>
       <AccountLangToggle compact />
@@ -2102,6 +2199,7 @@ function Nav({
         onClick={() => setPinned(!pinned)}
         aria-expanded={pinned}
         aria-label={pinned ? 'Réduire le menu' : 'Garder le menu ouvert'}
+        type="button"
       >
         <span>
           <Icon name="menu" />
@@ -2444,6 +2542,7 @@ export default function App() {
     : 'login'
   return (
     <div className="shell">
+      <BrandGradientDefs />
       <div
         className="phone"
         data-nav={

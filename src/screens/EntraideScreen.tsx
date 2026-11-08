@@ -311,6 +311,7 @@ export function Help({ go, openQuestion }: { go: (s: Screen) => void; openQuesti
           <select
             value={technology}
             onChange={(event) => setTechnology(event.target.value)}
+            autoComplete="off"
           >
             <option value="">
               {lang === 'en' ? 'All technologies' : 'Toutes les technologies'}
@@ -876,9 +877,12 @@ export function QuestionThread({
                       maxLength={10000}
                       onChange={(event) => setEditBody(event.target.value)}
                       aria-label={lang === 'en' ? 'Edit your answer' : 'Modifier ta réponse'}
+                      spellCheck
+                      autoCapitalize="sentences"
                     />
                     <input
                       className="text-input"
+                      type="url"
                       value={editProof}
                       placeholder={
                         lang === 'en'
@@ -886,6 +890,10 @@ export function QuestionThread({
                           : 'Preuve : lien GitHub (facultatif)'
                       }
                       onChange={(event) => setEditProof(event.target.value)}
+                      autoComplete="url"
+                      inputMode="url"
+                      enterKeyHint="done"
+                      spellCheck={false}
                     />
                     <div className="answer-actions">
                       <button
@@ -998,9 +1006,12 @@ export function QuestionThread({
             }
             onChange={(event) => setAnswerBody(event.target.value)}
             aria-label={lang === 'en' ? 'Your answer' : 'Ta réponse'}
+            spellCheck
+            autoCapitalize="sentences"
           />
           <input
             className="text-input"
+            type="url"
             value={answerProof}
             placeholder={
               lang === 'en'
@@ -1008,13 +1019,17 @@ export function QuestionThread({
                 : 'Preuve : lien GitHub (facultatif)'
             }
             onChange={(event) => setAnswerProof(event.target.value)}
+            autoComplete="url"
+            inputMode="url"
+            enterKeyHint="done"
+            spellCheck={false}
           />
           <p className="form-note">
             {lang === 'en'
               ? 'Your draft is saved on this device.'
               : 'Ton brouillon est enregistré sur cet appareil.'}
           </p>
-          <Primary type="submit" disabled={busy || !online || !answerBody.trim()}>
+          <Primary type="submit" disabled={busy || !online || !answerBody.trim()} loading={busy}>
             {busy
               ? lang === 'en'
                 ? 'Sending…'
@@ -1253,6 +1268,9 @@ export function Add({
                 : 'Ex. Mon paiement Mobile Money affiche une erreur'
             }
             onChange={(event) => updateDraft({ title: event.target.value })}
+            autoComplete="off"
+            enterKeyHint="next"
+            spellCheck
           />
           <small id="question-title-help" className="field-help">
             {lang === 'en'
@@ -1280,6 +1298,8 @@ export function Add({
                 : 'Qu’as-tu essayé ? Quel message d’erreur vois-tu ?'
             }
             onChange={(event) => updateDraft({ body: event.target.value })}
+            spellCheck
+            autoCapitalize="sentences"
           />
           <small id="question-body-help" className="field-help">
             {lang === 'en'
@@ -1303,6 +1323,9 @@ export function Add({
             aria-describedby={`question-technologies-help${fieldErrors.technologies ? ' question-technologies-error' : ''}`}
             placeholder="React, Node.js, PostgreSQL"
             onChange={(event) => updateDraft({ technologies: event.target.value })}
+            autoComplete="off"
+            enterKeyHint="next"
+            spellCheck={false}
           />
           <small id="question-technologies-help" className="field-help">
             {lang === 'en'
@@ -1357,11 +1380,16 @@ export function Add({
           <input
             id="question-github"
             className="text-input"
+            type="url"
             value={draft.githubUrl}
             aria-invalid={Boolean(fieldErrors.githubUrl)}
             aria-describedby={`question-github-help${fieldErrors.githubUrl ? ' question-github-error' : ''}`}
             placeholder="https://github.com/ton-pseudo/ton-projet"
             onChange={(event) => updateDraft({ githubUrl: event.target.value })}
+            autoComplete="url"
+            inputMode="url"
+            enterKeyHint="done"
+            spellCheck={false}
           />
           <small id="question-github-help" className="field-help">
             {lang === 'en'
@@ -1525,7 +1553,7 @@ export function Add({
           </p>
         )}
 
-        <Primary type="submit" disabled={submitting}>
+        <Primary type="submit" disabled={submitting} loading={submitting}>
           {submitting
             ? lang === 'en'
               ? 'Publishing…'

@@ -271,8 +271,10 @@ const tr = (fr: string) => {
   return lang === 'en' && EN[key] ? fr.replace(key, EN[key]) : fr
 }
 let obs: MutationObserver | null = null
+let applyTimer = 0
 
 function apply() {
+  window.clearTimeout(applyTimer)
   obs?.disconnect()
   const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
   for (let n = w.nextNode(); n; n = w.nextNode()) {
@@ -293,9 +295,16 @@ function apply() {
   obs?.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS })
 }
 
+/** Regroupe les mutations en une seule passe : le traducteur ne relance plus
+ *  une traversée complète du DOM à chaque frappe ou rendu React. */
+function scheduleApply() {
+  window.clearTimeout(applyTimer)
+  applyTimer = window.setTimeout(apply, 90)
+}
+
 export function startTranslator() {
   document.documentElement.lang = lang
-  obs = new MutationObserver(apply)
+  obs = new MutationObserver(scheduleApply)
   apply()
 }
 export function setLang(l: Lang) {

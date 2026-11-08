@@ -8,7 +8,30 @@
       name="description"
       content="Trouve ce qui existe, fais-toi aider, aide les autres : la plateforme d'entraide des développeurs africains."
     />
+    <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#050816" />
+    <script>
+      // Pose le thème avant la première peinture pour éviter tout flash clair.
+      (function () {
+        try {
+          var root = document.documentElement
+          var saved = localStorage.getItem('bondev-theme')
+          var theme =
+            saved === 'dark' || saved === 'light'
+              ? saved
+              : window.matchMedia &&
+                  window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light'
+                : 'dark'
+          root.dataset.theme = theme
+          root.style.colorScheme = theme
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', theme === 'light' ? '#eef3ff' : '#050816')
+        } catch (error) {
+          /* Le thème par défaut reste sombre. */
+        }
+      })()
+    </script>
     <link rel="canonical" href="https://bondev.ngassakindzaa.workers.dev" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />

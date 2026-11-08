@@ -185,6 +185,7 @@ export function ShareProject({
           <div className="repo-row">
             <input
               className="text-input"
+              type="url"
               value={repoUrl}
               onChange={(event) => handleRepoChange(event.target.value)}
               onPaste={handlePaste}
@@ -192,12 +193,15 @@ export function ShareProject({
               placeholder="https://github.com/ton-pseudo/ton-projet"
               autoComplete="url"
               inputMode="url"
+              enterKeyHint="next"
+              spellCheck={false}
             />
             <button
               className="secondary"
               type="button"
               onClick={() => void loadRepo(repoUrl)}
               disabled={fetching || !repoUrl.trim()}
+              aria-busy={fetching || undefined}
             >
               <Icon name="github" size={18} />{' '}
               {fetching
@@ -230,6 +234,9 @@ export function ShareProject({
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Ex. Gestion de stock pour petites boutiques"
             maxLength={200}
+            autoComplete="off"
+            enterKeyHint="next"
+            spellCheck
           />
         </label>
 
@@ -244,6 +251,8 @@ export function ShareProject({
                 : 'Explique ce que fait le projet et à qui il sert.'
             }
             maxLength={5000}
+            spellCheck
+            autoCapitalize="sentences"
           />
         </label>
 
@@ -258,6 +267,9 @@ export function ShareProject({
             value={technologies}
             onChange={(event) => setTechnologies(event.target.value)}
             placeholder="React, Node.js, PostgreSQL"
+            autoComplete="off"
+            enterKeyHint="next"
+            spellCheck={false}
           />
         </label>
 
@@ -269,6 +281,9 @@ export function ShareProject({
             onChange={(event) => setLicense(event.target.value)}
             placeholder="MIT, Apache-2.0, GPL-3.0…"
             maxLength={40}
+            autoComplete="off"
+            enterKeyHint="next"
+            spellCheck={false}
           />
         </label>
 
@@ -283,6 +298,9 @@ export function ShareProject({
             value={tags}
             onChange={(event) => setTags(event.target.value)}
             placeholder="Mobile Money, hors-ligne, SMS"
+            autoComplete="off"
+            enterKeyHint="done"
+            spellCheck={false}
           />
         </label>
 
@@ -298,7 +316,7 @@ export function ShareProject({
           </p>
         )}
 
-        <Primary type="submit" disabled={publishing}>
+        <Primary type="submit" disabled={publishing} loading={publishing}>
           {publishing
             ? lang === 'en'
               ? 'Publishing…'

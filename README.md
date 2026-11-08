@@ -181,10 +181,53 @@ Tailles du build de production (gzip) :
 
 | Élément | Avant | Après |
 |---|---|---|
-| Entrée principale | 174,58 kB | 107,82 kB |
+| Entrée principale | 174,58 kB | 109,18 kB |
 | Supabase | inclus | 55,16 kB (chunk séparé) |
-| CSS | 17,90 kB | 18,25 kB |
-| Écrans lazy | inclus | 3,04 à 7,34 kB chacun |
+| CSS | 17,90 kB | 23,73 kB |
+| Écrans lazy | inclus | 3,05 à 8,68 kB chacun |
+
+## Design system
+
+La refonte visuelle est centralisée **en fin de `src/index.css`**, après les règles historiques. Elle harmonise les composants existants sans modifier le contenu, les écrans ni la logique métier. Aucune dépendance n'a été ajoutée.
+
+### Tokens
+
+- **Thèmes sombre et clair** : `html[data-theme]` définit les fonds, surfaces, bordures, textes, la marque (`#1EA7FF`, `#2F6BFF`, `#7B3FF2`), le succès, l'alerte et le danger. Le thème initial est appliqué **avant la première peinture** par le script inline de `index.html`, avec `<meta name="color-scheme">` et `color-scheme`.
+- **Rayons** : `--bd-radius-sm|md|lg|xl|pill` valent 12 / 16 / 22 / 28 / 999 px.
+- **Ombres** : douce, moyenne, halo de marque et danger.
+- **Espacements** : base 4 px, de `--bd-space-1` à `--bd-space-8`.
+- **Mouvement** : durées 120 / 200 / 320 / 520 ms, courbe `cubic-bezier(.2,.8,.2,1)` et ressort `cubic-bezier(.34,1.56,.64,1)`.
+
+### Boutons
+
+- **Primaire** : dégradé de marque, élévation et halo au survol, échelle `.94` à l'appui puis retour ressort en 280 ms.
+- **Contour** : bordure dégradée de 2 px, fond transparent, texte et icône en dégradé.
+- **Ghost**, **danger** et **icône seule** : variantes dédiées, tailles `.btn-sm` et `.btn-lg`, cibles d'au moins 44 px.
+- **États** : `:focus-visible` avec anneau de marque, `:disabled` atténué, `[aria-busy="true"]` avec pulsation discrète. Tous les boutons utilisent `-webkit-tap-highlight-color: transparent` et `touch-action: manipulation`.
+- **Recherche** : le bouton loupe reprend la variante contour, avec un `linearGradient` SVG pour la loupe et un rebond au survol, au focus et à l'appui.
+
+### Navigation
+
+- Barre basse sur mobile, barre latérale sur tablette et ordinateur.
+- L'icône active est **remplie en dégradé** (`FILLED_ICONS` + `url(#brand-gradient)`), l'icône inactive reste en trait fin gris.
+- Un indicateur glisse d'un onglet à l'autre avec un ressort ; sa position est mesurée dans le DOM (`ResizeObserver`, chargement, polices, redimensionnement).
+- L'icône active passe à l'échelle `1.08` avec un rebond, et son libellé est en dégradé.
+- Les trois états du menu latéral (fermé, survolé, épinglé) conservent le même alignement.
+
+### Champs et sélections
+
+- Champs, zones de texte, sélections et barre de recherche partagent les surfaces, bordures et rayons des tokens ; le focus affiche un anneau de marque.
+- La case à cocher des filtres a une coche animée et un fond dégradé ; l'interrupteur glisse avec un ressort.
+- Le remplissage automatique de Chrome est neutralisé par `:-webkit-autofill` et la surface du thème. Les champs portent `autocomplete`, `inputmode`, `enterkeyhint` et `spellcheck` adaptés.
+
+### Accessibilité et préférences
+
+- Contrastes AA, focus visible et cibles tactiles de 44 px minimum.
+- `prefers-reduced-motion` supprime animations et transitions.
+- Le mode **Économie de données** coupe le flou, les animations et allège les ombres.
+- Le traducteur observait chaque frappe : il est désormais temporisé à 90 ms pour éviter les repeints en cascade.
+
+Les captures avant/après sont dans `docs/screens/` (non versionnées, 11 fichiers, largeur maximale 1180 px) : accueil, recherche, Entraide et profil, en mobile et ordinateur, thèmes sombre et clair. La capture `avant-accueil-mobile-sombre.jpg` montre la bannière invitée anormalement haute et le rideau blanc corrigés.
 
 ## Affichage responsive
 
@@ -215,7 +258,7 @@ Règles appliquées dans `src/index.css` :
 - panneau de filtres mobile en `position: fixed`, largeur `min(360px, 100%)`, défilement interne et au-dessus de la navigation ;
 - en paysage de téléphone, le menu latéral défile verticalement et les cartes tablette passent d'elles-mêmes à une colonne quand le contenu devient étroit.
 
-Les captures avant/après sont dans [`docs/screens/responsive/`](docs/screens/responsive/). Les fichiers `before-thread-resolved-*` et `after-thread-resolved-*` montrent le bandeau corrigé ; les fichiers `final-*` couvrent les largeurs 320, 390, 768, 1024 et 1920 px, les thèmes sombre et clair, les états du fil, le panneau de filtres et les trois états du menu.
+Les captures avant/après de cette vérification sont dans [`docs/screens/`](docs/screens/) et détaillées dans la section [Design system](#design-system). Elles ne sont pas versionnées.
 
 > [!NOTE]
 > Les états « retirée » et « expirée » ne sont pas disponibles dans les données de démonstration actuelles : ils ont été simulés dans le DOM pour vérifier leur mise en page, pas rejoués depuis Supabase. Les tests à 200 % ont été faits dans Chromium en agrandissant les polices calculées, pas avec le zoom texte natif de chaque navigateur. Safari/iOS, le clavier virtuel réel et les lecteurs d'écran n'ont pas été testés sur appareil physique. Un placeholder de champ de recherche sur une seule ligne reste tronqué nativement à 320 px ; le libellé complet reste disponible dans l'attribut `placeholder`.

@@ -615,9 +615,10 @@ export function Profile({
             <AccountLangToggle />
           </section>
           <button
-            className="secondary logout"
+            className="danger logout"
             onClick={() => void handleSignOut()}
             disabled={signingOut}
+            aria-busy={signingOut || undefined}
             type="button"
           >
             {signingOut ? 'Déconnexion…' : 'Se déconnecter'}

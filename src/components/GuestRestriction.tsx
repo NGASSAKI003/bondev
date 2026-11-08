@@ -32,6 +32,7 @@ export function GuestRestriction({
           type="button"
           onClick={() => void upgrade()}
           disabled={busy}
+          aria-busy={busy || undefined}
         >
           <Icon name="github" />
           {GUEST_UPGRADE_LABEL}

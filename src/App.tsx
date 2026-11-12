@@ -4,6 +4,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -40,17 +41,41 @@ import {
   type LevelDefinition,
   type ProgressSummary,
 } from './lib/progress'
-import { normalizeSearchText, searchProjects } from './lib/search'
+import { normalizeSearchText, queryTokens, searchProjects, splitHighlight, findConcepts } from './lib/search'
 import { GuestBanner } from './components/GuestBanner'
+import { ShareButton } from './components/ShareButton'
+import { buildHash, parseHash, type Route } from './lib/router'
+import { shareUrlFor } from './lib/share'
+import {
+  clearRecentSearches,
+  readRecentSearches,
+  recentSearchesDisabled,
+  recordRecentSearch,
+  removeRecentSearch,
+  setRecentSearchesDisabled,
+} from './lib/recentSearches'
+import {
+  AnimatedNumber,
+  Confetti,
+  LivePoints,
+  barStyle,
+} from './components/motion'
+import { navigationDirection, motionEnabled } from './lib/motion'
+import { vibrate } from './lib/haptics'
+import { navigateWithMotion } from './lib/viewTransition'
 import {
   AccountLangToggle,
   BrandGradientDefs,
   Header,
   Icon,
+  LevelEmblem,
   Primary,
+  ProjectMonogram,
   ScreenSkeleton,
+  StateArt,
   ThemeToggle,
   initialsFor,
+  levelIndexFor,
 } from './components/ui'
 import type { Screen } from './screens/types'
 
@@ -88,6 +113,92 @@ const HowItWorks = lazy(() =>
 const DATA_SAVER_KEY = 'bondev-data-saver'
 const TUTORIAL_KEY_PREFIX = 'bondev-tutorial'
 const SEEN_KEY_PREFIX = 'bondev-progress-seen'
+
+const SCREEN_TITLES: Record<Screen, { fr: string; en: string }> = {
+  login: { fr: 'Connexion', en: 'Sign in' },
+  home: { fr: 'Accueil', en: 'Home' },
+  results: { fr: 'Recherche', en: 'Search' },
+  project: { fr: 'Projet', en: 'Project' },
+  share: { fr: 'Partager un projet', en: 'Share a project' },
+  help: { fr: 'Entraide', en: 'Help' },
+  question: { fr: 'Question', en: 'Question' },
+  add: { fr: 'Demander de l’aide', en: 'Ask for help' },
+  profile: { fr: 'Profil', en: 'Profile' },
+  how: { fr: 'Règles', en: 'Rules' },
+  states: { fr: 'États', en: 'States' },
+  notFound: { fr: 'Page introuvable', en: 'Page not found' },
+}
+
+function screenForRoute(route: Route): Screen {
+  switch (route.name) {
+    case 'home':
+    case 'results':
+    case 'project':
+    case 'help':
+    case 'question':
+    case 'share':
+    case 'add':
+    case 'profile':
+    case 'how':
+    case 'login':
+    case 'states':
+    case 'notFound':
+      return route.name
+  }
+}
+
+
+const SEARCH_PLACEHOLDERS: Record<Lang, string[]> = {
+  fr: [
+    'Décris ton besoin : ex. gérer le stock d’une boutique',
+    'Cherche une solution : ex. Mobile Money',
+    'Trouve un projet : ex. fonctionner hors-ligne',
+  ],
+  en: [
+    'Describe your need: e.g. manage a shop’s stock',
+    'Find a solution: e.g. Mobile Money',
+    'Find a project: e.g. work offline',
+  ],
+}
+
+/** Placeholder qui s'écrit puis s'efface, immobile au focus ou si mouvement réduit. */
+function useSearchPlaceholder(lang: Lang, paused: boolean): string {
+  const phrases = SEARCH_PLACEHOLDERS[lang]
+  const [text, setText] = useState(phrases[0])
+
+  useEffect(() => {
+    if (paused) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setText(phrases[0])
+      return
+    }
+    let phrase = 0
+    let char = phrases[0].length
+    let deleting = true
+    let timer = 0
+    const tick = () => {
+      const current = phrases[phrase]
+      if (!deleting && char === current.length) {
+        deleting = true
+        timer = window.setTimeout(tick, 1900)
+        return
+      }
+      if (deleting && char === 0) {
+        deleting = false
+        phrase = (phrase + 1) % phrases.length
+        timer = window.setTimeout(tick, 280)
+        return
+      }
+      char += deleting ? -1 : 1
+      setText(current.slice(0, char))
+      timer = window.setTimeout(tick, deleting ? 26 : 46)
+    }
+    timer = window.setTimeout(tick, 1100)
+    return () => window.clearTimeout(timer)
+  }, [lang, paused])
+
+  return text
+}
 
 const GOOGLE_LOGIN_ENABLED = import.meta.env.VITE_ENABLE_GOOGLE === 'true'
 const EMAIL_LOGIN_ENABLED = import.meta.env.VITE_ENABLE_EMAIL === 'true'
@@ -353,25 +464,28 @@ function PointsCard() {
     <section className="glass points-card">
       <div className="section-title">
         <h2>Mes points</h2>
-        <span>{stats?.level ?? '—'}</span>
+        <span className="points-level">
+          <LevelEmblem index={levelIndexFor(totalEarned)} size={24} />
+          {stats?.level ?? '-'}
+        </span>
       </div>
       <strong>
-        {stats ? stats.balance : '—'} <small>points disponibles</small>
+        <LivePoints value={stats?.balance ?? null} />{' '}
+        <small>points disponibles</small>
       </strong>
       <div className="level">
-        <i
-          style={{
-            background: `linear-gradient(90deg,#1ea7ff ${progress}%,#ffffff12 ${progress}%)`,
-          }}
-        />
+        <i key={Math.round(progress)} style={barStyle(progress)} />
         <span>
-          {stats
-            ? `${stats.total_earned} ${
-                lang === 'en' ? 'earned in total' : 'gagnés au total'
-              }`
-            : statsLoading
-              ? 'Chargement…'
-              : 'Points indisponibles'}
+          {stats ? (
+            <>
+              <AnimatedNumber value={stats.total_earned} />{' '}
+              {lang === 'en' ? 'earned in total' : 'gagnés au total'}
+            </>
+          ) : statsLoading ? (
+            'Chargement…'
+          ) : (
+            'Points indisponibles'
+          )}
         </span>
       </div>
       {statsError && (
@@ -576,16 +690,165 @@ function ImpactStrip({
   )
 }
 
+function HighlightedText({
+  text,
+  query,
+}: {
+  text: string
+  query?: string
+}) {
+  const tokens = useMemo(() => queryTokens(query ?? ''), [query])
+  if (tokens.length === 0) return <>{text}</>
+  return (
+    <>
+      {splitHighlight(text, tokens).map((part, index) =>
+        part.match ? (
+          <mark key={index}>{part.text}</mark>
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </>
+  )
+}
+
+function SearchSuggestions({
+  query,
+  onPick,
+  inputId,
+}: {
+  query: string
+  onPick: (value: string) => void
+  inputId: string
+}) {
+  const lang = useLang()
+  const concepts = useMemo(() => findConcepts(query).slice(0, 5), [query])
+  if (concepts.length === 0) return null
+  return (
+    <div
+      className="search-suggestions"
+      id={`${inputId}-suggestions`}
+      role="listbox"
+      aria-label={lang === 'en' ? 'Search suggestions' : 'Suggestions de recherche'}
+    >
+      {concepts.map((concept) => (
+        <button
+          key={concept.id}
+          type="button"
+          role="option"
+          aria-selected={false}
+          onClick={() => onPick(concept.label[lang])}
+        >
+          <Icon name="search" size={14} />
+          {concept.label[lang]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function RecentSearches({
+  items,
+  disabled,
+  onPick,
+  onRemove,
+  onClear,
+  onDisable,
+  onEnable,
+}: {
+  items: string[]
+  disabled: boolean
+  onPick: (value: string) => void
+  onRemove: (value: string) => void
+  onClear: () => void
+  onDisable: () => void
+  onEnable: () => void
+}) {
+  const lang = useLang()
+  if (disabled) {
+    return (
+      <p className="recent-search-off">
+        {lang === 'en'
+          ? 'Recent searches are turned off.'
+          : 'Les recherches récentes sont désactivées.'}{' '}
+        <button type="button" onClick={onEnable}>
+          {lang === 'en' ? 'Turn back on' : 'Réactiver'}
+        </button>
+      </p>
+    )
+  }
+  if (items.length === 0) return null
+  return (
+    <div className="recent-searches">
+      <span className="recent-label">
+        {lang === 'en' ? 'Recent' : 'Récent'}
+      </span>
+      <div className="recent-list">
+        {items.map((item) => (
+          <span className="recent-chip" key={item}>
+            <button type="button" onClick={() => onPick(item)}>
+              {item}
+            </button>
+            <button
+              type="button"
+              className="recent-remove"
+              onClick={() => onRemove(item)}
+              aria-label={
+                lang === 'en' ? `Remove ${item}` : `Retirer ${item}`
+              }
+            >
+              <Icon name="close" size={12} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <button type="button" className="recent-action" onClick={onClear}>
+        {lang === 'en' ? 'Clear' : 'Effacer'}
+      </button>
+      <button type="button" className="recent-action" onClick={onDisable}>
+        {lang === 'en' ? 'Turn off' : 'Désactiver'}
+      </button>
+    </div>
+  )
+}
+
+function NotFound({ go }: { go: (screen: Screen) => void }) {
+  const lang = useLang()
+  return (
+    <main className="screen">
+      <Header logo />
+      <section className="glass empty notfound">
+        <span className="notfound-code" aria-hidden="true">
+          404
+        </span>
+        <h1>
+          {lang === 'en' ? 'This page took a wrong turn' : 'Cette page s’est égarée'}
+        </h1>
+        <p>
+          {lang === 'en'
+            ? 'The link may be old, or the page may have moved. The catalogue is still right here.'
+            : 'Le lien est peut-être ancien, ou la page a déménagé. Le catalogue, lui, est toujours là.'}
+        </p>
+        <Primary onClick={() => go('home')}>
+          {lang === 'en' ? 'Back home' : 'Retour à l’accueil'}
+        </Primary>
+      </section>
+    </main>
+  )
+}
+
 function ProjectCard({
   project,
   compact = false,
   open,
   why,
+  query,
 }: {
   project: Project
   compact?: boolean
   open: () => void
   why?: string
+  query?: string
 }) {
   const lang = useLang()
   const { label, isExample } = splitProjectTitle(project.title)
@@ -614,12 +877,12 @@ function ProjectCard({
 
   return (
     <article className={`glass project ${compact ? 'compact' : ''}`}>
-      <div className="project-icon">
-        <Icon name="code" />
-      </div>
+      <ProjectMonogram name={label} seed={project.id} compact={compact} />
       <div className="project-body">
         <div className="project-heading">
-          <h3>{label}</h3>
+          <h3>
+            <HighlightedText text={label} query={query} />
+          </h3>
           {isExample && (
             <span className="badge-example">
               {lang === 'en' ? 'Example' : 'Exemple'}
@@ -627,12 +890,18 @@ function ProjectCard({
           )}
         </div>
         <p>
-          {project.description ||
-            (lang === 'en' ? 'No description yet.' : 'Pas encore de description.')}
+          <HighlightedText
+            text={
+              project.description ||
+              (lang === 'en' ? 'No description yet.' : 'Pas encore de description.')
+            }
+            query={query}
+          />
         </p>
         {why && (
           <p className="why">
-            <b>Pourquoi ce projet :</b> {why}
+            <b>Pourquoi ce projet :</b>{' '}
+            <HighlightedText text={why} query={query} />
           </p>
         )}
         {!compact && (
@@ -728,9 +997,7 @@ function CatalogueError({
   const lang = useLang()
   return (
     <section className="glass empty catalogue-error" role="status">
-      <div>
-        <Icon name="wifi" size={30} />
-      </div>
+      <StateArt kind="error" />
       <h2>
         {lang === 'en' ? 'The catalogue is unavailable' : 'Le catalogue est indisponible'}
       </h2>
@@ -958,6 +1225,12 @@ function Home({
   progressSavedAt,
   onProgressRetry,
   onHow,
+  recentSearches,
+  recentDisabled,
+  onRemoveRecent,
+  onClearRecent,
+  onDisableRecent,
+  onEnableRecent,
 }: {
   go: (s: Screen) => void
   projects: Project[] | null
@@ -975,19 +1248,30 @@ function Home({
   progressSavedAt: number | null
   onProgressRetry: () => void
   onHow: () => void
+  recentSearches: string[]
+  recentDisabled: boolean
+  onRemoveRecent: (value: string) => void
+  onClearRecent: () => void
+  onDisableRecent: () => void
+  onEnableRecent: () => void
 }) {
   const { profile } = useAuth()
   const lang = useLang()
   const [draft, setDraft] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
+  const placeholder = useSearchPlaceholder(lang, searchFocused)
   const greetingName =
     profile?.display_name.trim() ||
     profile?.pseudo ||
     (lang === 'en' ? 'developer' : 'développeur')
+  const greetingAvatar = profile?.avatar_url.startsWith('https://')
+    ? profile.avatar_url
+    : ''
   const recent = projects?.slice(0, 3) ?? []
   const suggestions = [
-    'Mobile Money',
-    'Gestion de stock',
-    'Fonctionne hors-ligne',
+    { label: 'Mobile Money', icon: 'wallet' },
+    { label: 'Gestion de stock', icon: 'box' },
+    { label: 'Fonctionne hors-ligne', icon: 'wifi' },
   ]
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -1001,24 +1285,47 @@ function Home({
       <div className="home-layout">
         <div className="home-main">
           <section className="hero">
-            <p className="eyebrow">
-              {lang === 'en' ? 'Hello' : 'Bonjour'}, {greetingName}
-            </p>
+            <div className="home-greeting">
+              <span className="greeting-avatar" aria-hidden="true">
+                {greetingAvatar ? (
+                  <img src={greetingAvatar} alt="" />
+                ) : (
+                  initialsFor(greetingName, profile?.pseudo ?? '')
+                )}
+              </span>
+              <p className="eyebrow">
+                {lang === 'en' ? 'Hello' : 'Bonjour'}, {greetingName}
+              </p>
+            </div>
             <h1>
               Que veux-tu <span>construire ?</span>
             </h1>
             <form className="searchbox search-form" onSubmit={submit}>
               <Icon name="search" />
               <input
+                id="home-search"
                 type="search"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="Décris ton besoin : ex. gérer le stock d’une boutique"
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                onKeyDown={(event) => {
+                  // Entrée valide la recherche immédiatement, y compris sur
+                  // les navigateurs mobiles où la touche « rechercher » ne
+                  // déclenche pas toujours la soumission implicite du form.
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    onSearch(draft.trim())
+                  }
+                }}
+                placeholder={placeholder}
                 aria-label={
                   lang === 'en'
                     ? 'Search the project catalogue'
                     : 'Rechercher dans le catalogue'
                 }
+                aria-controls="home-search-suggestions"
+                aria-keyshortcuts="Control+K"
                 autoComplete="off"
                 inputMode="search"
                 enterKeyHint="search"
@@ -1033,6 +1340,23 @@ function Home({
                 <Icon name="search" size={20} gradient />
               </button>
             </form>
+            <SearchSuggestions
+              query={draft}
+              inputId="home-search"
+              onPick={(value) => {
+                setDraft(value)
+                onSearch(value)
+              }}
+            />
+            <RecentSearches
+              items={recentSearches}
+              disabled={recentDisabled}
+              onPick={onSearch}
+              onRemove={onRemoveRecent}
+              onClear={onClearRecent}
+              onDisable={onDisableRecent}
+              onEnable={onEnableRecent}
+            />
             <p className="smart">
               ✦ Recherche intelligente : décris ton besoin avec tes mots
             </p>
@@ -1040,11 +1364,12 @@ function Home({
               <div className="chips">
                 {suggestions.map((suggestion) => (
                   <button
-                    key={suggestion}
-                    onClick={() => onSearch(suggestion)}
+                    key={suggestion.label}
+                    onClick={() => onSearch(suggestion.label)}
                     type="button"
                   >
-                    {suggestion}
+                    <Icon name={suggestion.icon} size={16} />
+                    {suggestion.label}
                   </button>
                 ))}
               </div>
@@ -1098,9 +1423,7 @@ function Home({
               <CatalogueError message={error} onRetry={onRetry} />
             ) : (
               <section className="glass empty catalogue-empty">
-                <div>
-                  <Icon name="code" size={30} />
-                </div>
+                <StateArt kind="first" />
                 <h2>
                   {lang === 'en'
                     ? 'No projects yet'
@@ -1222,6 +1545,15 @@ function Results({
   savedAt,
   onRetry,
   openProject,
+  onSubmitSearch,
+  onPickSuggestion,
+  recentSearches,
+  recentDisabled,
+  onRemoveRecent,
+  onClearRecent,
+  onDisableRecent,
+  onEnableRecent,
+  onBack,
 }: {
   go: (s: Screen) => void
   query: string
@@ -1233,12 +1565,44 @@ function Results({
   savedAt: number | null
   onRetry: () => void
   openProject: (project: Project, from: Screen) => void
+  onSubmitSearch: () => void
+  onPickSuggestion: (value: string) => void
+  recentSearches: string[]
+  recentDisabled: boolean
+  onRemoveRecent: (value: string) => void
+  onClearRecent: () => void
+  onDisableRecent: () => void
+  onEnableRecent: () => void
+  onBack: () => void
 }) {
   const lang = useLang()
   const [filters, setFilters] = useState(false)
   const [selectedTechnologies, setSelectedTechnologies] = useState<string[]>([])
   const [selectedLicenses, setSelectedLicenses] = useState<string[]>([])
   const [selectedContexts, setSelectedContexts] = useState<string[]>([])
+
+  const closeFilters = useCallback(() => {
+    setFilters(false)
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('.filter-trigger')?.focus()
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!filters) return
+    const before = document.activeElement as HTMLElement | null
+    document
+      .querySelector<HTMLElement>('.filter-panel .filter-close')
+      ?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setFilters(false)
+      ;(before ?? document.querySelector<HTMLElement>('.filter-trigger'))?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [filters])
 
   /**
    * Les technologies sont regroupées sans tenir compte de la casse, puis
@@ -1343,12 +1707,29 @@ function Results({
 
   const understood = lang === 'en' ? outcome.understoodEn : outcome.understood
 
+  // Entrée valide la recherche : le clavier mobile se referme et la liste
+  // revient dans le champ de vision, sans perdre la saisie.
+  const submitSearch = () => {
+    const input = document.getElementById('catalogue-search')
+    input?.blur()
+    document
+      .querySelector('.results-layout')
+      ?.scrollIntoView({
+        block: 'nearest',
+        behavior: motionEnabled() ? 'smooth' : 'auto',
+      })
+  }
+
   return (
     <main className="screen">
-      <Header title={title} back={() => go('home')} />
+      <Header title={title} back={onBack} />
       <form
         className="query glass"
-        onSubmit={(event) => event.preventDefault()}
+        onSubmit={(event) => {
+          event.preventDefault()
+          onSubmitSearch()
+          submitSearch()
+        }}
       >
         <Icon name="search" size={20} />
         <input
@@ -1363,6 +1744,8 @@ function Results({
               ? 'Search the project catalogue'
               : 'Rechercher dans le catalogue'
           }
+          aria-controls="catalogue-search-suggestions"
+          aria-keyshortcuts="Control+K"
           autoComplete="off"
           inputMode="search"
           enterKeyHint="search"
@@ -1382,11 +1765,27 @@ function Results({
           className="filter-trigger"
           onClick={() => setFilters(true)}
           type="button"
+          aria-expanded={filters}
+          aria-controls="filters-panel"
         >
           {lang === 'en' ? 'Filters' : 'Filtres'}
           {activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
         </button>
       </form>
+      <SearchSuggestions
+        query={query}
+        inputId="catalogue-search"
+        onPick={onPickSuggestion}
+      />
+      <RecentSearches
+        items={recentSearches}
+        disabled={recentDisabled}
+        onPick={onPickSuggestion}
+        onRemove={onRemoveRecent}
+        onClear={onClearRecent}
+        onDisable={onDisableRecent}
+        onEnable={onEnableRecent}
+      />
       {query.trim() && understood && (
         <section className="glass understood">
           <b>✦ Bondev a compris :</b> {understood}
@@ -1396,10 +1795,10 @@ function Results({
         <CacheNotice savedAt={savedAt} error={error} onRetry={onRetry} />
       )}
       <div className="results-layout">
-        <div className={`filter-panel ${filters ? 'open' : ''}`}>
+        <div id="filters-panel" className={`filter-panel ${filters ? 'open' : ''}`}>
           <button
             className="filter-close"
-            onClick={() => setFilters(false)}
+            onClick={closeFilters}
             type="button"
           >
             {lang === 'en' ? 'Close' : 'Fermer'}
@@ -1446,15 +1845,14 @@ function Results({
                   key={result.project.id}
                   project={result.project}
                   why={lang === 'en' ? result.whyEn : result.why}
+                  query={query}
                   open={() => openProject(result.project, 'results')}
                 />
               ))}
             </div>
           ) : outcome.results.length > 0 && activeFilterCount > 0 ? (
             <section className="glass empty results-empty">
-              <div>
-                <Icon name="search" size={30} />
-              </div>
+              <StateArt kind="search" />
               <h2>
                 {lang === 'en'
                   ? 'No projects match these filters'
@@ -1471,9 +1869,7 @@ function Results({
             </section>
           ) : (
             <section className="glass empty results-empty">
-              <div>
-                <Icon name="search" size={30} />
-              </div>
+              <StateArt kind="search" />
               <h2>
                 {lang === 'en'
                   ? 'Nothing matches yet'
@@ -1751,6 +2147,11 @@ function ProjectDetail({
                     ? 'This helped me ✓'
                     : 'Ça m’a servi ✓'}
             </button>
+            <ShareButton
+              url={shareUrlFor({ name: 'project', id: project.id })}
+              title={label}
+              text={project.description || undefined}
+            />
           </div>
 
           {isGuest && guestNotice && (
@@ -1880,24 +2281,41 @@ function celebrationContent(
 
 function CelebrationToast({
   item,
+  index,
   onClose,
 }: {
   item: Celebration
-  onClose: () => void
+  index: number
+  onClose: (key: string) => void
 }) {
   const lang = useLang()
   const content = celebrationContent(item, lang)
+  const isLevel = item.kind === 'level'
 
   useEffect(() => {
-    const timer = window.setTimeout(onClose, 6000)
+    const timer = window.setTimeout(() => onClose(item.key), 6000)
     return () => window.clearTimeout(timer)
   }, [item.key, onClose])
 
+  // La validation déclenche déjà son impulsion au moment de l'action : on
+  // évite un second buzz quelques centaines de millisecondes plus tard.
+  useEffect(() => {
+    if (item.kind !== 'validated') vibrate(10)
+  }, [item.key, item.kind])
+
   return (
-    <div className="celebration-layer" role="status" aria-live="polite">
-      <section className="celebration-toast">
-        <span className="celebration-icon" aria-hidden="true">
-          <Icon name={content.icon} size={26} />
+    <>
+      {index === 0 && <Confetti />}
+      <section
+        className={`celebration-toast ${isLevel ? 'level-toast' : ''}`}
+        data-index={index}
+      >
+        <span
+          className={isLevel ? 'celebration-emblem' : 'celebration-icon'}
+          aria-hidden="true"
+        >
+          <Icon name={content.icon} size={isLevel ? 28 : 26} />
+          {isLevel && <i className="emblem-ring" />}
         </span>
         <div>
           <b>{content.title}</b>
@@ -1905,19 +2323,67 @@ function CelebrationToast({
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => onClose(item.key)}
           aria-label={lang === 'en' ? 'Close' : 'Fermer'}
         >
           <Icon name="close" size={16} />
         </button>
       </section>
-    </div>
+    </>
   )
 }
 
 function Tutorial({ onDone }: { onDone: () => void }) {
   const lang = useLang()
   const [step, setStep] = useState(0)
+  const cardRef = useRef<HTMLElement | null>(null)
+  const doneRef = useRef(onDone)
+  doneRef.current = onDone
+
+  useEffect(() => {
+    const card = cardRef.current
+    const previous = document.activeElement as HTMLElement | null
+    const selector =
+      'button:not([disabled]),[href],input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])'
+    const focusables = () =>
+      card
+        ? Array.from(card.querySelectorAll<HTMLElement>(selector)).filter(
+            (element) => element.offsetParent !== null,
+          )
+        : []
+    const frame = window.requestAnimationFrame(() => {
+      focusables()[0]?.focus({ preventScroll: true })
+    })
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        doneRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || !card) return
+      const list = focusables()
+      if (list.length === 0) {
+        event.preventDefault()
+        return
+      }
+      const first = list[0]
+      const last = list[list.length - 1]
+      const inside = card.contains(document.activeElement)
+      if (event.shiftKey && (!inside || document.activeElement === first)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (!inside || document.activeElement === last)) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', onKey)
+      previous?.focus({ preventScroll: true })
+    }
+  }, [])
   const steps = [
     {
       icon: 'flame',
@@ -1956,7 +2422,7 @@ function Tutorial({ onDone }: { onDone: () => void }) {
       aria-modal="true"
       aria-labelledby="tutorial-title"
     >
-      <section className="tutorial-card">
+      <section className="tutorial-card" ref={cardRef}>
         <div className="tutorial-top">
           <span>
             {step + 1} / {steps.length}
@@ -2014,16 +2480,14 @@ function States({ go }: { go: (s: Screen) => void }) {
       <Header title="États" back={() => go('profile')} />
       <section className="states">
         <div className="offline">
-          <Icon name="wifi" />
+          <StateArt kind="offline" />
           <span>
             <b>Hors-ligne</b> · Tes demandes partiront dès que le réseau
             revient.
           </span>
         </div>
         <div className="glass empty">
-          <div>
-            <Icon name="check" size={32} />
-          </div>
+          <StateArt kind="help" />
           <h2>Tout est calme</h2>
           <p>
             Aucune demande pour le moment.
@@ -2041,26 +2505,21 @@ function Nav({
   onAdd,
   pinned,
   setPinned,
+  sheet = false,
 }: {
   active: Screen
   go: (s: Screen) => void
   onAdd: () => void
   pinned: boolean
   setPinned: (v: boolean) => void
+  sheet?: boolean
 }) {
   const [peek, setPeek] = useState(false)
   const timer = useRef<number>(0)
-  const navRef = useRef<HTMLElement>(null)
-  const [pill, setPill] = useState({
-    left: 0,
-    top: 0,
-    width: 0,
-    height: 0,
-    ready: false,
-  })
   const pick = (f: () => void) => () => {
+    // Le menu garde son ouverture tant que le curseur reste dessus : le
+    // refermer ici provoquait un rabattement puis une réouverture immédiate.
     if (window.innerWidth < 1025) setPinned(false)
-    setPeek(false)
     f()
   }
   const items: [Screen, string, string][] = [
@@ -2071,65 +2530,14 @@ function Nav({
     ['how', 'book', 'Règles'],
   ]
   const isActive = (screen: Screen) =>
+    (screen === 'add' && sheet) ||
     active === screen ||
     ((active === 'results' || active === 'project') && screen === 'home') ||
     (active === 'question' && screen === 'help') ||
     (active === 'share' && screen === 'add')
-  const activeKey = items.find(([screen]) => isActive(screen))?.[0] ?? 'home'
-
-  // L'indicateur est mesuré dans le DOM : il suit les trois états du menu
-  // (réduit, survolé, ouvert) et les changements de largeur.
-  useEffect(() => {
-    const nav = navRef.current
-    if (!nav) return
-    let frame = 0
-    const measure = () => {
-      window.cancelAnimationFrame(frame)
-      frame = window.requestAnimationFrame(() => {
-        const button = nav.querySelector<HTMLElement>(
-          `[data-nav-item="${activeKey}"]`,
-        )
-        if (!button) return
-        const navRect = nav.getBoundingClientRect()
-        const rect = button.getBoundingClientRect()
-        setPill({
-          left: rect.left - navRect.left,
-          top: rect.top - navRect.top,
-          width: rect.width,
-          height: rect.height,
-          ready: true,
-        })
-      })
-    }
-    measure()
-    const settle = window.setTimeout(measure, 180)
-    const onLoad = () => measure()
-    window.addEventListener('load', onLoad)
-    document.fonts?.ready.then(onLoad).catch(() => undefined)
-    const observer =
-      typeof ResizeObserver === 'undefined'
-        ? null
-        : new ResizeObserver(measure)
-    observer?.observe(nav)
-    const button = nav.querySelector<HTMLElement>(
-      `[data-nav-item="${activeKey}"]`,
-    )
-    if (button) observer?.observe(button)
-    nav.addEventListener('transitionend', measure)
-    window.addEventListener('resize', measure)
-    return () => {
-      window.cancelAnimationFrame(frame)
-      window.clearTimeout(settle)
-      observer?.disconnect()
-      window.removeEventListener('load', onLoad)
-      nav.removeEventListener('transitionend', measure)
-      window.removeEventListener('resize', measure)
-    }
-  }, [activeKey, pinned, peek])
 
   return (
     <nav
-      ref={navRef}
       className={`nav ${peek ? 'peek' : ''}`}
       aria-label="Navigation principale"
       onPointerEnter={(e) => {
@@ -2143,16 +2551,6 @@ function Nav({
         setPeek(false)
       }}
     >
-      <span
-        className={`nav-indicator ${pill.ready ? 'ready' : ''}`}
-        aria-hidden="true"
-        style={{
-          left: pill.left,
-          top: pill.top,
-          width: pill.width,
-          height: pill.height,
-        }}
-      />
       <div className="nav-logo">
         <img
           src="/assets/bondev-logo-96.webp"
@@ -2175,12 +2573,13 @@ function Nav({
             aria-current={selected ? 'page' : undefined}
             onClick={pick(() => (x[0] === 'add' ? onAdd() : go(x[0])))}
           >
-            <span className={x[0] === 'add' ? 'add' : ''}>
-              <Icon
-                name={x[1]}
-                filled={selected && x[0] !== 'add'}
-              />
-            </span>
+            {x[0] === 'add' ? (
+              <span className="add">
+                <Icon name={x[1]} gradient={!selected} size={22} />
+              </span>
+            ) : (
+              <Icon name={x[1]} filled={selected} size={22} />
+            )}
             <small>{x[2]}</small>
           </button>
         )
@@ -2227,6 +2626,7 @@ function LoadingScreen() {
 }
 export default function App() {
   const { session, loading, profileError } = useAuth()
+  const lang = useLang()
   const [screen, setScreen] = useState<Screen>('login')
   const [sheet, setSheet] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -2244,6 +2644,12 @@ export default function App() {
   const [projectsFromCache, setProjectsFromCache] = useState(false)
   const [projectsSavedAt, setProjectsSavedAt] = useState<number | null>(null)
   const [query, setQuery] = useState('')
+  const [recentSearches, setRecentSearches] = useState<string[]>(() =>
+    readRecentSearches(),
+  )
+  const [recentDisabled, setRecentDisabled] = useState(() =>
+    recentSearchesDisabled(),
+  )
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null,
   )
@@ -2251,6 +2657,10 @@ export default function App() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(
     null,
   )
+  const [notFoundPath, setNotFoundPath] = useState(() => {
+    const route = parseHash(window.location.hash)
+    return route.name === 'notFound' ? route.path : '/inconnue'
+  })
   const [progressResult, setProgressResult] = useState<ProgressResult | null>(
     null,
   )
@@ -2263,6 +2673,421 @@ export default function App() {
   const [dataSaver, setDataSaver] = useState(defaultDataSaver)
 
   const userId = session?.user.id
+
+  const pendingScroll = useRef<number | null>(null)
+  const pendingFocus = useRef(false)
+  const historyIndex = useRef(0)
+  const [navTick, setNavTick] = useState(0)
+  const [showBackToTop, setShowBackToTop] = useState(false)
+  const currentScreenRef = useRef<Screen>('login')
+  const currentScreen: Screen = session
+    ? screen === 'login'
+      ? 'home'
+      : screen
+    : 'login'
+  currentScreenRef.current = currentScreen
+
+  const saveHistoryScroll = useCallback(() => {
+    const state = history.state as { index?: number; scrollY?: number } | null
+    if (!state || typeof state.index !== 'number') return
+    try {
+      history.replaceState({ ...state, scrollY: window.scrollY }, '')
+    } catch {
+      /* L'historique peut être verrouillé : la navigation reste utilisable. */
+    }
+  }, [])
+
+  const routeForScreen = useCallback(
+    (
+      target: Screen,
+      projectId: string | null = selectedProjectId,
+      questionId: string | null = selectedQuestionId,
+      searchQuery: string = query,
+    ): Route => {
+      switch (target) {
+        case 'results':
+          return { name: 'results', query: searchQuery }
+        case 'project':
+          return projectId
+            ? { name: 'project', id: projectId }
+            : { name: 'results', query: searchQuery }
+        case 'question':
+          return questionId
+            ? { name: 'question', id: questionId }
+            : { name: 'help' }
+        case 'notFound':
+          return { name: 'notFound', path: notFoundPath }
+        case 'login':
+        case 'home':
+        case 'share':
+        case 'help':
+        case 'add':
+        case 'profile':
+        case 'how':
+        case 'states':
+          return { name: target }
+      }
+    },
+    [
+      notFoundPath,
+      query,
+      selectedProjectId,
+      selectedQuestionId,
+    ],
+  )
+
+  const applyRoute = useCallback((route: Route) => {
+    if (route.name === 'notFound') setNotFoundPath(route.path)
+    setScreen(screenForRoute(route))
+    if (route.name === 'results') {
+      setQuery(route.query)
+      return
+    }
+    if (route.name === 'project') {
+      setSelectedProjectId(route.id)
+      setDetailFrom('results')
+      return
+    }
+    if (route.name === 'question') {
+      setSelectedQuestionId(route.id)
+    }
+  }, [])
+
+  const navigate = useCallback(
+    (
+      target: Screen,
+      options?: {
+        projectId?: string | null
+        questionId?: string | null
+        query?: string
+        update?: () => void
+      },
+    ) => {
+      const from = currentScreenRef.current
+      const route = routeForScreen(
+        target,
+        options?.projectId === undefined
+          ? selectedProjectId
+          : options.projectId,
+        options?.questionId === undefined
+          ? selectedQuestionId
+          : options.questionId,
+        options?.query === undefined ? query : options.query,
+      )
+
+      saveHistoryScroll()
+      const index = historyIndex.current + 1
+      try {
+        history.pushState(
+          { index, scrollY: 0 },
+          '',
+          buildHash(route),
+        )
+      } catch {
+        /* Sans History API, l'écran change quand même. */
+      }
+      historyIndex.current = index
+      pendingScroll.current = 0
+      pendingFocus.current = true
+
+      const direction = navigationDirection(from, target)
+      navigateWithMotion(() => {
+        options?.update?.()
+        setScreen(target)
+        setNavTick((value) => value + 1)
+      }, direction)
+    },
+    [
+      query,
+      routeForScreen,
+      saveHistoryScroll,
+      selectedProjectId,
+      selectedQuestionId,
+    ],
+  )
+
+  const go = useCallback(
+    (target: Screen) => {
+      if (target === currentScreenRef.current) {
+        // Un second appui sur l'onglet actif ramène en haut de l'écran.
+        window.scrollTo({
+          top: 0,
+          behavior: motionEnabled() ? 'smooth' : 'auto',
+        })
+        return
+      }
+      navigate(target)
+    },
+    [navigate],
+  )
+
+  const goBack = useCallback(
+    (fallback: Screen) => {
+      // Le bouton retour des écrans se comporte comme celui du navigateur :
+      // il dépile l'historique réel et retrouve la position de défilement.
+      if (historyIndex.current > 0) {
+        history.back()
+        return
+      }
+      navigate(fallback)
+    },
+    [navigate],
+  )
+
+  const rememberSearch = useCallback(
+    (value: string) => {
+      if (recentDisabled || !value.trim()) return
+      setRecentSearches((current) => recordRecentSearch(value, current))
+    },
+    [recentDisabled],
+  )
+
+  const changeQuery = useCallback((value: string) => {
+    setQuery(value)
+    if (currentScreenRef.current !== 'results') return
+    const route: Route = { name: 'results', query: value.trim() }
+    try {
+      const state = history.state as Record<string, unknown> | null
+      history.replaceState(
+        { ...(state ?? {}), index: historyIndex.current, scrollY: window.scrollY },
+        '',
+        buildHash(route),
+      )
+    } catch {
+      /* L'URL est un confort : la recherche fonctionne même sans elle. */
+    }
+  }, [])
+
+  const openResults = useCallback(
+    (value: string) => {
+      rememberSearch(value)
+      navigate('results', {
+        query: value,
+        update: () => setQuery(value),
+      })
+    },
+    [navigate, rememberSearch],
+  )
+
+  const submitResultsSearch = useCallback(() => {
+    changeQuery(query)
+    rememberSearch(query)
+  }, [changeQuery, query, rememberSearch])
+
+  const pickResultsQuery = useCallback(
+    (value: string) => {
+      changeQuery(value)
+      rememberSearch(value)
+    },
+    [changeQuery, rememberSearch],
+  )
+
+  const openProject = useCallback(
+    (project: Project, from: Screen) => {
+      navigate('project', {
+        projectId: project.id,
+        update: () => {
+          setSelectedProjectId(project.id)
+          setDetailFrom(from)
+        },
+      })
+    },
+    [navigate],
+  )
+
+  const openQuestion = useCallback(
+    (questionId: string) => {
+      navigate('question', {
+        questionId,
+        update: () => setSelectedQuestionId(questionId),
+      })
+    },
+    [navigate],
+  )
+
+  const booted = useRef(false)
+  const authUserId = useRef<string | undefined>(undefined)
+
+  // Amorçage unique : on lit le fragment, on le canonicalise sans empiler une
+  // entrée, puis on applique l'écran. Un lien direct reste en place pendant la
+  // connexion et sera rejoué dès que la session arrive.
+  useEffect(() => {
+    if (loading) return
+    if (!booted.current) {
+      booted.current = true
+      authUserId.current = userId
+      const parsed = parseHash(window.location.hash)
+      const route: Route =
+        userId && parsed.name === 'login' ? { name: 'home' } : parsed
+      const state = history.state as { index?: number; scrollY?: number } | null
+      const index =
+        state && typeof state.index === 'number' ? state.index : 0
+      try {
+        history.replaceState(
+          { ...(state ?? {}), index, scrollY: window.scrollY },
+          '',
+          buildHash(route),
+        )
+      } catch {
+        /* La navigation interne reste possible. */
+      }
+      historyIndex.current = index
+      applyRoute(route)
+      setNavTick((value) => value + 1)
+      return
+    }
+
+    const previous = authUserId.current
+    authUserId.current = userId
+    if (userId && !previous) {
+      const parsed = parseHash(window.location.hash)
+      const route: Route =
+        parsed.name === 'login' ? { name: 'home' } : parsed
+      if (parsed.name === 'login') {
+        try {
+          history.replaceState(
+            {
+              ...(history.state ?? {}),
+              index: historyIndex.current,
+              scrollY: 0,
+            },
+            '',
+            buildHash(route),
+          )
+        } catch {}
+      }
+      applyRoute(route)
+      setNavTick((value) => value + 1)
+    } else if (!userId && previous) {
+      const route: Route = { name: 'login' }
+      setScreen('login')
+      setSheet(false)
+      setSelectedProjectId(null)
+      setSelectedQuestionId(null)
+      try {
+        history.replaceState(
+          {
+            ...(history.state ?? {}),
+            index: historyIndex.current,
+            scrollY: 0,
+          },
+          '',
+          buildHash(route),
+        )
+      } catch {}
+      setNavTick((value) => value + 1)
+    }
+  }, [applyRoute, loading, userId])
+
+  // Retour / Avancer : le sens vient de l'index conservé dans l'état
+  // d'historique, pas de la profondeur des écrans.
+  useEffect(() => {
+    if (loading) return
+    const onPop = (event: PopStateEvent) => {
+      const route = parseHash(window.location.hash)
+      const state = event.state as { index?: number; scrollY?: number } | null
+      const nextIndex =
+        state && typeof state.index === 'number'
+          ? state.index
+          : historyIndex.current
+      const direction =
+        nextIndex < historyIndex.current
+          ? 'back'
+          : nextIndex > historyIndex.current
+            ? 'forward'
+            : 'none'
+      historyIndex.current = nextIndex
+      pendingScroll.current =
+        state && typeof state.scrollY === 'number' ? state.scrollY : 0
+      pendingFocus.current = true
+      navigateWithMotion(() => {
+        applyRoute(route)
+        setNavTick((value) => value + 1)
+      }, direction)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [applyRoute, loading])
+
+  // Le focus suit le nouvel écran pour les lecteurs d'écran, sans faire
+  // défiler la page : la position de défilement est gérée séparément.
+  useEffect(() => {
+    if (!pendingFocus.current) return
+    pendingFocus.current = false
+    const frame = window.requestAnimationFrame(() => {
+      const content = document.getElementById('contenu')
+      const heading = content?.querySelector<HTMLElement>('h1, h2')
+      const target = heading ?? content
+      if (!target) return
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1')
+      target.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [navTick, screen])
+
+  useLayoutEffect(() => {
+    const target = pendingScroll.current
+    if (target === null) return
+    pendingScroll.current = null
+    const apply = () =>
+      window.scrollTo({ top: target, left: 0, behavior: 'auto' })
+    apply()
+    if (target <= 0) return
+    // Les écrans différés et les listes distantes peuvent changer la hauteur
+    // après la première peinture : on réapplique la position pendant 600 ms,
+    // puis on s'arrête. Cela évite autant le saut au chargement que la boucle.
+    let frame = 0
+    let frames = 0
+    const tick = () => {
+      apply()
+      frames += 1
+      if (frames < 8) frame = window.requestAnimationFrame(tick)
+    }
+    frame = window.requestAnimationFrame(tick)
+    const t1 = window.setTimeout(apply, 120)
+    const t2 = window.setTimeout(apply, 280)
+    const t3 = window.setTimeout(apply, 600)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.clearTimeout(t3)
+    }
+  }, [navTick])
+
+  useEffect(() => {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+    let frame = 0
+    let saveTimer = 0
+    const apply = () => {
+      frame = 0
+      const y = window.scrollY
+      document.documentElement.dataset.scrolled = y > 8 ? 'true' : 'false'
+      const next = y > 560
+      setShowBackToTop((value) => (value === next ? value : next))
+    }
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(apply)
+      window.clearTimeout(saveTimer)
+      saveTimer = window.setTimeout(saveHistoryScroll, 140)
+    }
+    const onHide = () => saveHistoryScroll()
+    apply()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('pagehide', onHide)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(saveTimer)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('pagehide', onHide)
+      delete document.documentElement.dataset.scrolled
+    }
+  }, [saveHistoryScroll])
+
+  useEffect(() => {
+    const label = SCREEN_TITLES[screen]?.[lang] ?? SCREEN_TITLES.home[lang]
+    document.title = `${label} · Bondev`
+  }, [screen, lang])
 
   const loadProgress = useCallback(async () => {
     if (!userId) return
@@ -2363,8 +3188,8 @@ export default function App() {
     }
   }, [dataSaver])
 
-  const dismissCelebration = useCallback(() => {
-    setCelebrations((queue) => queue.slice(1))
+  const dismissCelebration = useCallback((key: string) => {
+    setCelebrations((queue) => queue.filter((item) => item.key !== key))
   }, [])
 
   const completeTutorial = () => {
@@ -2431,18 +3256,77 @@ export default function App() {
 
   useEffect(() => {
     if (!userId) return
+    const focusSearch = () => {
+      if (currentScreenRef.current !== 'results') {
+        navigate('results', { query })
+      }
+      window.setTimeout(() => {
+        const input = document.getElementById('catalogue-search')
+        input?.focus()
+      }, 120)
+    }
     const handleShortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        setScreen('results')
-        window.setTimeout(() => {
-          document.getElementById('catalogue-search')?.focus()
-        }, 80)
+        focusSearch()
+        return
       }
+      if (
+        event.key !== '/' ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      ) {
+        return
+      }
+      const target = event.target as HTMLElement | null
+      const typing =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable
+      if (typing) return
+      event.preventDefault()
+      focusSearch()
     }
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
-  }, [userId])
+  }, [navigate, query, userId])
+
+  // En-tête visible quand le clavier virtuel réduit la zone visible.
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+    const root = document.documentElement
+    let frame = 0
+    const update = () => {
+      frame = 0
+      const active = document.activeElement as HTMLElement | null
+      const editable =
+        active?.tagName === 'INPUT' ||
+        active?.tagName === 'TEXTAREA' ||
+        active?.isContentEditable === true
+      const open =
+        editable && window.innerHeight - viewport.height > 120
+      root.dataset.keyboard = open ? 'open' : 'closed'
+    }
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(update)
+    }
+    viewport.addEventListener('resize', schedule)
+    viewport.addEventListener('scroll', schedule)
+    window.addEventListener('focusin', schedule)
+    window.addEventListener('focusout', schedule)
+    update()
+    return () => {
+      window.cancelAnimationFrame(frame)
+      viewport.removeEventListener('resize', schedule)
+      viewport.removeEventListener('scroll', schedule)
+      window.removeEventListener('focusin', schedule)
+      window.removeEventListener('focusout', schedule)
+      delete root.dataset.keyboard
+    }
+  }, [])
   const [net, setNet] = useState<'offline' | 'online' | null>(
     navigator.onLine ? null : 'offline',
   )
@@ -2489,33 +3373,19 @@ export default function App() {
       localStorage.setItem('bondev-nav', pinned ? 'open' : 'closed')
     } catch {}
   }, [pinned])
-  useEffect(() => {
-    if (!loading && !session) {
-      setScreen('login')
-      setSheet(false)
-      setSelectedProjectId(null)
-      setSelectedQuestionId(null)
-    }
-  }, [loading, session])
-  const go = (s: Screen) => {
-    setScreen(s)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  const removeRecent = (value: string) => {
+    setRecentSearches((current) => removeRecentSearch(value, current))
   }
-  const openResults = (value: string) => {
-    setQuery(value)
-    setScreen('results')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  const clearRecent = () => {
+    setRecentSearches(clearRecentSearches())
   }
-  const openProject = (project: Project, from: Screen) => {
-    setSelectedProjectId(project.id)
-    setDetailFrom(from)
-    setScreen('project')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  const disableRecent = () => {
+    setRecentSearchesDisabled(true)
+    setRecentDisabled(true)
   }
-  const openQuestion = (questionId: string) => {
-    setSelectedQuestionId(questionId)
-    setScreen('question')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  const enableRecent = () => {
+    setRecentSearchesDisabled(false)
+    setRecentDisabled(false)
   }
   const handleProjectUsed = (projectId: string) => {
     if (!projects) return
@@ -2540,9 +3410,74 @@ export default function App() {
       ? 'home'
       : screen
     : 'login'
+
+  // Feuille « Ajouter » : modale, donc focus piégé pendant l'ouverture et
+  // rendu au bouton d'origine à la fermeture. Échap la referme.
+  useEffect(() => {
+    if (!sheet) return
+    const dialog = document.querySelector<HTMLElement>('.add-sheet')
+    if (!dialog) return
+    const selector =
+      'button:not([disabled]),[href],input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])'
+    const focusables = () =>
+      Array.from(dialog.querySelectorAll<HTMLElement>(selector)).filter(
+        (element) => element.offsetParent !== null,
+      )
+    const previous = document.activeElement as HTMLElement | null
+    let closingNow = false
+    const frame = window.requestAnimationFrame(() => {
+      focusables()[0]?.focus({ preventScroll: true })
+    })
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        if (closingNow) return
+        closingNow = true
+        closeSheet()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const list = focusables()
+      if (list.length === 0) {
+        event.preventDefault()
+        return
+      }
+      const first = list[0]
+      const last = list[list.length - 1]
+      const inside = dialog.contains(document.activeElement)
+      if (event.shiftKey && (!inside || document.activeElement === first)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (!inside || document.activeElement === last)) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', onKey)
+      const target = previous?.isConnected
+        ? previous
+        : document.querySelector<HTMLElement>('[data-nav-item="add"]')
+      target?.focus({ preventScroll: true })
+    }
+  }, [sheet])
+
   return (
     <div className="shell">
       <BrandGradientDefs />
+      <a
+        className="skip-link"
+        href="#contenu"
+        onClick={(event) => {
+          event.preventDefault()
+          const content = document.getElementById('contenu')
+          content?.focus({ preventScroll: false })
+        }}
+      >
+        {lang === 'en' ? 'Skip to content' : 'Aller au contenu'}
+      </a>
       <div
         className="phone"
         data-nav={
@@ -2565,7 +3500,7 @@ export default function App() {
           <Login />
         ) : (
           <>
-            <div className="content">
+            <div className="content" id="contenu" tabIndex={-1}>
               {profileError && activeScreen !== 'profile' && (
                 <div className="app-notice" role="status">
                   {profileError}
@@ -2593,13 +3528,19 @@ export default function App() {
                     progressSavedAt={progressResult?.savedAt ?? null}
                     onProgressRetry={() => void loadProgress()}
                     onHow={() => go('how')}
+                    recentSearches={recentSearches}
+                    recentDisabled={recentDisabled}
+                    onRemoveRecent={removeRecent}
+                    onClearRecent={clearRecent}
+                    onDisableRecent={disableRecent}
+                    onEnableRecent={enableRecent}
                   />
                 )}{' '}
                 {activeScreen === 'results' && (
                   <Results
                     go={go}
                     query={query}
-                    setQuery={setQuery}
+                    setQuery={changeQuery}
                     projects={projects}
                     loading={projectsLoading}
                     error={projectsError}
@@ -2607,6 +3548,15 @@ export default function App() {
                     savedAt={projectsSavedAt}
                     onRetry={retryProjects}
                     openProject={openProject}
+                    onSubmitSearch={submitResultsSearch}
+                    onPickSuggestion={pickResultsQuery}
+                    recentSearches={recentSearches}
+                    recentDisabled={recentDisabled}
+                    onRemoveRecent={removeRecent}
+                    onClearRecent={clearRecent}
+                    onDisableRecent={disableRecent}
+                    onEnableRecent={enableRecent}
+                    onBack={() => goBack('home')}
                   />
                 )}{' '}
                 {activeScreen === 'project' && (
@@ -2614,13 +3564,17 @@ export default function App() {
                     project={selectedProject}
                     loading={projectsLoading}
                     error={projectsError}
-                    back={() => go(detailFrom)}
+                    back={() => goBack(detailFrom)}
                     onRetry={retryProjects}
                     onUsed={handleProjectUsed}
                   />
                 )}{' '}
                 {activeScreen === 'share' && (
-                  <ShareProject go={go} onPublished={retryProjects} />
+                  <ShareProject
+                    go={go}
+                    onPublished={retryProjects}
+                    back={() => goBack('home')}
+                  />
                 )}{' '}
                 {activeScreen === 'help' && (
                   <Help go={go} openQuestion={openQuestion} />
@@ -2630,7 +3584,7 @@ export default function App() {
                     <QuestionThread
                       key={`${selectedQuestionId}:${userId ?? 'anon'}`}
                       questionId={selectedQuestionId}
-                      back={() => go('help')}
+                      back={() => goBack('help')}
                     />
                   ) : (
                     <Help go={go} openQuestion={openQuestion} />
@@ -2640,6 +3594,7 @@ export default function App() {
                     key={userId ?? 'anon'}
                     go={go}
                     onPosted={openQuestion}
+                    back={() => goBack('help')}
                   />
                 )}{' '}
                 {activeScreen === 'profile' && (
@@ -2654,9 +3609,10 @@ export default function App() {
                   />
                 )}{' '}
                 {activeScreen === 'how' && (
-                  <HowItWorks back={() => go('profile')} />
+                  <HowItWorks back={() => goBack('profile')} />
                 )}{' '}
                 {activeScreen === 'states' && <States go={go} />}
+                {activeScreen === 'notFound' && <NotFound go={go} />}
               </Suspense>
             </div>
             <Nav
@@ -2665,6 +3621,7 @@ export default function App() {
               onAdd={() => setSheet(true)}
               pinned={pinned}
               setPinned={setPinned}
+              sheet={sheet}
             />
             {sheet && (
               <div
@@ -2673,10 +3630,13 @@ export default function App() {
               >
                 <section
                   className="add-sheet"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="add-sheet-title"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <i />
-                  <h2>Que veux-tu ajouter ?</h2>
+                  <h2 id="add-sheet-title">Que veux-tu ajouter ?</h2>
                   <button onClick={() => closeSheet(() => go('add'))}>
                     <span>
                       <Icon name="ask" />
@@ -2704,13 +3664,37 @@ export default function App() {
                 </section>
               </div>
             )}
-            {celebrations[0] && (
-              <CelebrationToast
-                key={celebrations[0].key}
-                item={celebrations[0]}
-                onClose={dismissCelebration}
-              />
+            {celebrations.length > 0 && (
+              <div
+                className="celebration-layer"
+                role="status"
+                aria-live="polite"
+              >
+                {celebrations.slice(0, 3).map((item, index) => (
+                  <CelebrationToast
+                    key={item.key}
+                    item={item}
+                    index={index}
+                    onClose={dismissCelebration}
+                  />
+                ))}
+              </div>
             )}
+            <button
+              type="button"
+              className={`back-to-top ${showBackToTop ? 'show' : ''}`}
+              onClick={() =>
+                window.scrollTo({
+                  top: 0,
+                  behavior: motionEnabled() ? 'smooth' : 'auto',
+                })
+              }
+              aria-label={lang === 'en' ? 'Back to top' : 'Remonter en haut'}
+              aria-hidden={showBackToTop ? undefined : true}
+              tabIndex={showBackToTop ? 0 : -1}
+            >
+              <Icon name="arrow" size={20} />
+            </button>
             {tutorial && <Tutorial onDone={completeTutorial} />}
           </>
         )}

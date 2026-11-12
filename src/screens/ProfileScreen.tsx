@@ -26,7 +26,17 @@ import {
   type SpecialtyProgress,
   type TierBadgeProgress,
 } from '../lib/progress'
-import { AccountLangToggle, Header, Icon, initialsFor } from '../components/ui'
+import { AccountLangToggle, Header, Icon, LevelEmblem, initialsFor, levelIndexFor } from '../components/ui'
+import {
+  AnimatedNumber,
+  LivePoints,
+  barStyle,
+} from '../components/motion'
+import {
+  readHapticsEnabled,
+  vibrate,
+  writeHapticsEnabled,
+} from '../lib/haptics'
 import type { Screen } from './types'
 
 function BadgeFamilyCard({
@@ -80,7 +90,10 @@ function BadgeFamilyCard({
             : `${Math.round(badge.percent)} % vers le palier suivant`
         }
       >
-        <span style={{ width: `${badge.percent}%` }} />
+        <span
+          key={Math.round(badge.percent)}
+          style={barStyle(badge.percent)}
+        />
       </div>
       <small className="badge-next">{nextLabel}</small>
     </article>
@@ -128,7 +141,10 @@ function SpecialtyBadgeCard({ badge }: { badge: SpecialtyProgress }) {
         </div>
       </div>
       <div className="badge-bar" aria-hidden="true">
-        <span style={{ width: `${badge.percent}%` }} />
+        <span
+          key={Math.round(badge.percent)}
+          style={barStyle(badge.percent)}
+        />
       </div>
       <small className="badge-next">{nextLabel}</small>
     </article>
@@ -253,7 +269,7 @@ function ChallengePanel({
             : `${challenge.resolved} questions résolues sur ${target}`
         }
       >
-        <span style={{ width: `${percent}%` }} />
+        <span key={Math.round(percent)} style={barStyle(percent)} />
       </div>
       <p>{message}</p>
     </section>
@@ -294,7 +310,9 @@ export function Profile({
   const [ledgerReload, setLedgerReload] = useState(0)
   const [signingOut, setSigningOut] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [haptics, setHaptics] = useState(readHapticsEnabled)
   const userId = user?.id
+  const hapticsActive = haptics && !dataSaver
 
   useEffect(() => {
     if (!userId) {
@@ -325,6 +343,7 @@ export function Profile({
   const progress = progressResult?.progress ?? null
   const totalEarned = progress?.level.totalEarned ?? stats?.total_earned ?? 0
   const info = progress?.level ?? levelFor(totalEarned)
+  const levelIndex = levelIndexFor(totalEarned)
   const fromCache = progressResult?.fromCache ?? false
   const savedAt = progressResult?.savedAt ?? null
   const levelName =
@@ -380,7 +399,7 @@ export function Profile({
             </div>
           )}
           <section className="profile-head">
-            <div className="avatar">
+            <div className={`avatar level-${levelIndex}`}>
               {avatar ? <img src={avatar} alt="" /> : initials}
               <i />
             </div>
@@ -391,19 +410,29 @@ export function Profile({
           </section>
           <section className="glass stats">
             <div>
-              <b>{stats ? stats.balance : '—'}</b>
+              <b>
+                <LivePoints value={stats?.balance ?? null} />
+              </b>
               <span>Solde</span>
             </div>
             <div>
-              <b>{stats ? stats.total_earned : '—'}</b>
+              <b>
+                <AnimatedNumber value={stats?.total_earned ?? null} />
+              </b>
               <span>Total gagné</span>
             </div>
             <div>
-              <b className="stats-level">{levelName || '—'}</b>
+              <b className="stats-level">
+                <LevelEmblem index={levelIndex} size={22} />
+                {levelName || '—'}
+              </b>
               <span>Niveau</span>
             </div>
             <i>
-              <span style={{ width: `${info.percent}%` }} />
+              <span
+                key={Math.round(info.percent)}
+                style={barStyle(info.percent)}
+              />
             </i>
             <small>{progressLabel}</small>
           </section>
@@ -610,6 +639,40 @@ export function Profile({
               <span aria-hidden="true" />
             </button>
           </section>
+          <section className="glass saver-row haptics-row">
+            <div>
+              <b>{lang === 'en' ? 'Haptic feedback' : 'Retour haptique'}</b>
+              <small id="haptics-help">
+                {dataSaver
+                  ? lang === 'en'
+                    ? 'Disabled by Data saver.'
+                    : 'Coupé par l’Économie de données.'
+                  : lang === 'en'
+                    ? 'A light vibration on validation and celebration.'
+                    : 'Une vibration légère à la validation et aux célébrations.'}
+              </small>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={hapticsActive}
+              aria-label={
+                lang === 'en' ? 'Haptic feedback' : 'Retour haptique'
+              }
+              aria-describedby="haptics-help"
+              aria-disabled={dataSaver || undefined}
+              className={`switch ${hapticsActive ? 'on' : ''}`}
+              onClick={() => {
+                if (dataSaver) return
+                const next = !haptics
+                writeHapticsEnabled(next)
+                setHaptics(next)
+                if (next) vibrate(10)
+              }}
+            >
+              <span aria-hidden="true" />
+            </button>
+          </section>
           <section className="glass lang-row">
             <span>Langue</span>
             <AccountLangToggle />
@@ -664,7 +727,9 @@ export function Profile({
                       <b>{entry.reasonLabel}</b>
                       <small>{formatLedgerDate(entry.created_at, lang)}</small>
                     </p>
-                    <strong>{deltaLabel}</strong>
+                    <strong className={negative ? 'minus' : ''}>
+                      {deltaLabel}
+                    </strong>
                   </div>
                 )
               })

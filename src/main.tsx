@@ -11,6 +11,39 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'))
 }
 
+/**
+ * Pose les préférences qui pilotent le fond animé avant le premier rendu :
+ * onglet caché et Économie de données coupent les halos sans attendre React.
+ */
+function syncRuntimePreferences() {
+  const root = document.documentElement
+  root.dataset.activity = document.hidden ? 'hidden' : 'visible'
+  try {
+    const saved = localStorage.getItem('bondev-data-saver')
+    const connection = (
+      navigator as Navigator & { connection?: { saveData?: boolean } }
+    ).connection
+    root.dataset.saver =
+      saved === 'on' || (saved !== 'off' && connection?.saveData === true)
+        ? 'on'
+        : 'off'
+  } catch {
+    root.dataset.activity = document.hidden ? 'hidden' : 'visible'
+  }
+}
+
+syncRuntimePreferences()
+document.addEventListener('visibilitychange', syncRuntimePreferences)
+
+/** Fait disparaître le splash HTML après le montage de React. */
+function hideSplash() {
+  const splash = document.getElementById('splash')
+  if (!splash) return
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  splash.classList.add('splash-out')
+  window.setTimeout(() => splash.remove(), reduce ? 0 : 520)
+}
+
 function ConfigurationScreen() {
   return (
     <div className="shell">
@@ -85,3 +118,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     )}
   </React.StrictMode>,
 )
+
+// Laisse React peindre son premier écran avant de révéler l'application.
+window.requestAnimationFrame(() => {
+  window.setTimeout(hideSplash, 60)
+})

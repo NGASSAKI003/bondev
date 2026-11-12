@@ -1,4 +1,4 @@
-import { useState, type ClipboardEvent, type FormEvent } from 'react'
+import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react'
 import { useLang } from '../i18n'
 import { publishProject, toFrenchError, type PublishedProject } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -15,21 +15,90 @@ import { GuestRestriction } from '../components/GuestRestriction'
 import { Header, Icon, Primary } from '../components/ui'
 import type { Screen } from './types'
 
+const SHARE_DRAFT_PREFIX = 'bondev-share-draft-v1'
+
+type ShareDraft = {
+  repoUrl: string
+  title: string
+  description: string
+  technologies: string
+  license: string
+  tags: string
+}
+
+const EMPTY_SHARE_DRAFT: ShareDraft = {
+  repoUrl: '',
+  title: '',
+  description: '',
+  technologies: '',
+  license: '',
+  tags: '',
+}
+
+function readShareDraft(key: string): ShareDraft {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return EMPTY_SHARE_DRAFT
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return EMPTY_SHARE_DRAFT
+    const value = parsed as Record<string, unknown>
+    return {
+      repoUrl: typeof value.repoUrl === 'string' ? value.repoUrl : '',
+      title: typeof value.title === 'string' ? value.title : '',
+      description:
+        typeof value.description === 'string' ? value.description : '',
+      technologies:
+        typeof value.technologies === 'string' ? value.technologies : '',
+      license: typeof value.license === 'string' ? value.license : '',
+      tags: typeof value.tags === 'string' ? value.tags : '',
+    }
+  } catch {
+    return EMPTY_SHARE_DRAFT
+  }
+}
+
+function shareDraftHasContent(draft: ShareDraft): boolean {
+  return Object.values(draft).some((value) => value.trim().length > 0)
+}
+
+function writeShareDraft(key: string, draft: ShareDraft): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(draft))
+  } catch {
+    /* Le brouillon reste un confort : publier ne doit jamais en dépendre. */
+  }
+}
+
+function clearShareDraft(key: string): void {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    /* Rien à faire. */
+  }
+}
+
 export function ShareProject({
   go,
   onPublished,
+  back,
 }: {
   go: (screen: Screen) => void
   onPublished: () => void
+  back: () => void
 }) {
   const lang = useLang()
-  const { refreshStats, isGuest } = useAuth()
-  const [repoUrl, setRepoUrl] = useState('')
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [technologies, setTechnologies] = useState('')
-  const [license, setLicense] = useState('')
-  const [tags, setTags] = useState('')
+  const { refreshStats, isGuest, user } = useAuth()
+  const draftKey = `${SHARE_DRAFT_PREFIX}:${user?.id ?? 'anon'}`
+  const [restoredDraft] = useState<ShareDraft>(() => readShareDraft(draftKey))
+  const [draftRestored, setDraftRestored] = useState(() =>
+    shareDraftHasContent(restoredDraft),
+  )
+  const [repoUrl, setRepoUrl] = useState(restoredDraft.repoUrl)
+  const [title, setTitle] = useState(restoredDraft.title)
+  const [description, setDescription] = useState(restoredDraft.description)
+  const [technologies, setTechnologies] = useState(restoredDraft.technologies)
+  const [license, setLicense] = useState(restoredDraft.license)
+  const [tags, setTags] = useState(restoredDraft.tags)
   const [preview, setPreview] = useState<GithubRepoPreview | null>(null)
   const [fetchedUrl, setFetchedUrl] = useState<string | null>(null)
   const [fetching, setFetching] = useState(false)
@@ -38,12 +107,29 @@ export function ShareProject({
   const [publishError, setPublishError] = useState<string | null>(null)
   const [published, setPublished] = useState<PublishedProject | null>(null)
 
+  useEffect(() => {
+    const draft: ShareDraft = {
+      repoUrl,
+      title,
+      description,
+      technologies,
+      license,
+      tags,
+    }
+    if (!shareDraftHasContent(draft)) {
+      clearShareDraft(draftKey)
+      setDraftRestored(false)
+      return
+    }
+    writeShareDraft(draftKey, draft)
+  }, [draftKey, repoUrl, title, description, technologies, license, tags])
+
   if (isGuest) {
     return (
       <GuestRestriction
         title="Partager un projet"
         explanation={GUEST_SHARE_EXPLANATION}
-        back={() => go('home')}
+        back={back}
       />
     )
   }
@@ -132,6 +218,8 @@ export function ShareProject({
         tags: splitList(tags),
       })
       setPublished(result)
+      clearShareDraft(draftKey)
+      setDraftRestored(false)
       await refreshStats().catch(() => undefined)
       notifyProgressChanged()
       onPublished()
@@ -172,13 +260,40 @@ export function ShareProject({
     <main className="screen">
       <Header
         title={lang === 'en' ? 'Share a project' : 'Partager un projet'}
-        back={() => go('home')}
+        back={back}
       />
       <form className="form share-form" onSubmit={handlePublish}>
         <p className="eyebrow">
           {lang === 'en' ? 'A public repository is enough' : 'Un dépôt public suffit'}
         </p>
         <h2>{lang === 'en' ? 'Present your project' : 'Présente ton projet'}</h2>
+        {draftRestored && (
+          <p className="draft-note" role="status">
+            {lang === 'en'
+              ? 'Your draft from the last visit was restored.'
+              : 'Ton brouillon de la dernière visite a été restauré.'}{' '}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => {
+                clearShareDraft(draftKey)
+                setRepoUrl('')
+                setTitle('')
+                setDescription('')
+                setTechnologies('')
+                setLicense('')
+                setTags('')
+                setDraftRestored(false)
+                setPublishError(null)
+                setFetchError(null)
+                setPreview(null)
+                setFetchedUrl(null)
+              }}
+            >
+              {lang === 'en' ? 'Start over' : 'Repartir de zéro'}
+            </button>
+          </p>
+        )}
 
         <label>
           <span>{lang === 'en' ? 'GitHub link' : 'Lien GitHub'}</span>
@@ -238,6 +353,9 @@ export function ShareProject({
             enterKeyHint="next"
             spellCheck
           />
+          <small className="field-help">
+            <span className="char-count">{title.length} / 200</span>
+          </small>
         </label>
 
         <label>
@@ -254,6 +372,9 @@ export function ShareProject({
             spellCheck
             autoCapitalize="sentences"
           />
+          <small className="field-help">
+            <span className="char-count">{description.length} / 5 000</span>
+          </small>
         </label>
 
         <label>

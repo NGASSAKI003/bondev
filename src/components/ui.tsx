@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { LangToggle, useLang } from '../i18n'
 import { toFrenchError, updateMyProfile } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { LEVELS } from '../lib/progress'
+import { LivePoints } from './motion'
 
 // Briques visuelles communes aux écrans (icônes, en-tête, boutons).
 
@@ -12,6 +14,171 @@ export function initialsFor(name: string, pseudo: string): string {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
   }
   return source.slice(0, 2).toUpperCase() || '?'
+}
+
+/** Teinte stable dérivée d'un identifiant : mêmes couleurs à chaque visite. */
+export function toneFor(seed: string): number {
+  let hash = 0
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0
+  }
+  return hash % 6
+}
+
+/**
+ * Monogramme de projet : deux lettres et une teinte calculées uniquement à
+ * partir du titre et de l'identifiant, sans image ni appel réseau.
+ */
+export function ProjectMonogram({
+  name,
+  seed,
+  compact = false,
+}: {
+  name: string
+  seed: string
+  compact?: boolean
+}) {
+  const words = name
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .split(/[\s-]+/)
+    .filter(Boolean)
+  const letters = (
+    words.length >= 2
+      ? `${words[0][0]}${words[words.length - 1][0]}`
+      : (words[0] ?? '?').slice(0, 2)
+  ).toUpperCase()
+  return (
+    <span
+      className={`project-icon project-monogram tone-${toneFor(seed)} ${
+        compact ? 'compact' : ''
+      }`}
+      aria-hidden="true"
+    >
+      <span>{letters || '?'}</span>
+    </span>
+  )
+}
+
+/** Rang du niveau courant, calculé avec les mêmes seuils que le profil. */
+export function levelIndexFor(totalEarned: number): number {
+  let index = 0
+  LEVELS.forEach((level, position) => {
+    if (totalEarned >= level.min) index = position
+  })
+  return index
+}
+
+const LEVEL_ART: ReactNode[] = [
+  <path key="spark" d="M32 18v28M18 32h28M22 22l20 20M42 22 22 42" />,
+  <g key="compass">
+    <circle cx="32" cy="32" r="12" />
+    <path d="m37 27-3.4 7.6L26 38l3.4-7.6Z" />
+  </g>,
+  <g key="builder">
+    <rect x="18" y="34" width="12" height="11" rx="2" />
+    <rect x="34" y="34" width="12" height="11" rx="2" />
+    <rect x="26" y="19" width="12" height="11" rx="2" />
+  </g>,
+  <g key="mentor">
+    <path d="M32 18c5 6 9 9.5 9 14.5a9 9 0 0 1-18 0C23 27.5 27 24 32 18Z" />
+    <path d="M32 30v8" />
+  </g>,
+  <g key="master">
+    <path d="m20 40 2-16 8 7 6-11 6 11 8-7 2 16Z" />
+    <path d="M22 44h20" />
+  </g>,
+  <g key="legend">
+    <path d="m32 15 12 12-12 20-12-20Z" />
+    <path d="m24 27 8-3 8 3" />
+  </g>,
+]
+
+/**
+ * Emblème d'un des six niveaux. La silhouette verrouillée sert aux badges
+ * non débloqués ; le reste du temps, l'anneau et le motif sont colorés.
+ */
+export function LevelEmblem({
+  index,
+  size = 40,
+  locked = false,
+}: {
+  index: number
+  size?: number
+  locked?: boolean
+}) {
+  const safeIndex = Math.min(LEVEL_ART.length - 1, Math.max(0, index))
+  return (
+    <span
+      className={`level-emblem level-${safeIndex} ${locked ? 'is-locked' : ''}`}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 64 64" fill="none" focusable="false">
+        <path
+          className="emblem-frame"
+          d="M32 4.5 55 15v17.5c0 12.5-9.2 21.6-23 27.2C18.2 54.1 9 45 9 32.5V15Z"
+        />
+        <circle className="emblem-ring" cx="32" cy="32" r="22" />
+        <g className="emblem-art">{LEVEL_ART[safeIndex]}</g>
+      </svg>
+    </span>
+  )
+}
+
+export type StateArtKind = 'search' | 'help' | 'offline' | 'error' | 'first'
+
+const STATE_ART: Record<StateArtKind, ReactNode> = {
+  search: (
+    <>
+      <rect x="30" y="26" width="58" height="46" rx="12" />
+      <path d="M42 40h22M42 50h34" />
+      <circle cx="102" cy="68" r="18" />
+      <path d="m115 81 14 14" />
+      <path d="M34 22h18M34 22v18" />
+    </>
+  ),
+  help: (
+    <>
+      <path d="M30 32h44a10 10 0 0 1 10 10v18a10 10 0 0 1-10 10H58l-12 10v-10h-16a10 10 0 0 1-10-10V42a10 10 0 0 1 10-10Z" />
+      <path d="M96 24h26a10 10 0 0 1 10 10v14a10 10 0 0 1-10 10h-8v9l-10-9h-8a10 10 0 0 1-10-10V34a10 10 0 0 1 10-10Z" />
+      <path d="M46 50h20M46 59h12M104 37h14" />
+    </>
+  ),
+  offline: (
+    <>
+      <path d="M46 78h58a18 18 0 0 0 2-35.9A26 26 0 0 0 55 45a16.5 16.5 0 0 0-9 33Z" />
+      <path d="m36 30 78 62" />
+      <path d="M78 82h.01" />
+    </>
+  ),
+  error: (
+    <>
+      <path d="M80 24 112 80H48Z" />
+      <path d="M80 43v18M80 70h.01" />
+      <path d="M34 42h12M34 54h16M34 66h10" />
+    </>
+  ),
+  first: (
+    <>
+      <path d="M80 92V58" />
+      <path d="M80 64c0-14 9-23 23-23 0 14-9 23-23 23Z" />
+      <path d="M80 74c0-12-8-20-20-20 0 12 8 20 20 20Z" />
+      <path d="M50 92h60" />
+      <path d="M108 30v10M103 35h10" />
+    </>
+  ),
+}
+
+/** Illustration SVG inline, sans image externe, pour les états de l'app. */
+export function StateArt({ kind }: { kind: StateArtKind }) {
+  return (
+    <div className={`state-art state-${kind}`} aria-hidden="true">
+      <svg viewBox="0 0 160 120" fill="none" focusable="false">
+        <ellipse className="state-halo" cx="80" cy="62" rx="58" ry="46" />
+        <g className="state-lines">{STATE_ART[kind]}</g>
+      </svg>
+    </div>
+  )
 }
 
 
@@ -29,7 +196,7 @@ const FILLED_ICONS: Record<string, ReactNode> = {
     </>
   ),
   book: (
-    <path d="M6.5 2A2.5 2.5 0 0 0 4 4.5v15A2.5 2.5 0 0 0 6.5 22H20V2Zm0 2H18v14H6.5a2.5 2.5 0 0 0-.5.05V4.5A.5.5 0 0 1 6.5 4Z" />
+    <path d="M6.5 2A2.5 2.5 0 0 0 4 4.5v15A2.5 2.5 0 0 0 6.5 22H20V2H6.5Z" />
   ),
   plus: (
     <>
@@ -154,6 +321,14 @@ export function Icon({
       </>
     ),
     close: <path d="M18 6 6 18M6 6l12 12" />,
+    share: (
+      <>
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" />
+      </>
+    ),
     check: <path d="m5 12 4 4L19 6" />,
     chevron: <path d="m6 9 6 6 6-6" />,
     handshake: (
@@ -205,6 +380,33 @@ export function Icon({
         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
       </>
     ),
+    wallet: (
+      <>
+        <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5.5A2.5 2.5 0 0 1 3 16.5Z" />
+        <path d="M3 8h16M16 12h3" />
+      </>
+    ),
+    box: (
+      <>
+        <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" />
+        <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
+      </>
+    ),
+    shield: (
+      <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6Z" />
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M16 3v4M8 3v4M3 10h18" />
+      </>
+    ),
+    sparkles: (
+      <>
+        <path d="M12 3.5 13.6 8 18 9.5 13.6 11 12 15.5 10.4 11 6 9.5 10.4 8Z" />
+        <path d="M19 15v4M17 17h4M5 3v3M3.5 4.5h3" />
+      </>
+    ),
   }
   const isFilled = filled && Boolean(FILLED_ICONS[name])
   return (
@@ -215,7 +417,7 @@ export function Icon({
       viewBox="0 0 24 24"
       fill={isFilled ? 'url(#brand-gradient)' : 'none'}
       stroke={isFilled ? 'none' : gradient ? 'url(#brand-gradient)' : 'currentColor'}
-      strokeWidth="1.8"
+      strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
@@ -291,7 +493,7 @@ export function Header({
 }) {
   const { stats } = useAuth()
   const lang = useLang()
-  const balance = stats ? String(stats.balance) : '—'
+  const balance = <LivePoints value={stats?.balance ?? null} />
   return (
     <header className="topbar">
       {back ? (

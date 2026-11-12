@@ -71,6 +71,44 @@ npm test
 
 Ils couvrent notamment « paiement mobile money », « sans connexion », « stock boutique », une requête sans résultat, les accents et les scénarios du catalogue de départ (« application de santé hors-ligne », « sms ussd », « apprendre sans internet »).
 
+## Navigation et liens
+
+Chaque écran possède une adresse réelle derrière le fragment d'URL. Le routeur (`src/lib/router.ts`) est un module pur, sans dépendance, testé avec Vitest. Il valide les identifiants UUID et ne lève jamais sur un lien mal encodé.
+
+| Adresse | Écran |
+|---|---|
+| `#/` | Accueil |
+| `#/recherche?q=santé` | Résultats, avec la requête dans l'URL |
+| `#/projet/<uuid>` | Fiche projet |
+| `#/entraide` | Liste des questions |
+| `#/entraide/<uuid>` | Fil d'une question |
+| `#/profil` | Profil et progression |
+| `#/regles` | Règles de la communauté |
+| `#/connexion` | Connexion |
+
+Les écrans internes `#/ajouter`, `#/partager` et `#/etats` suivent les mêmes règles. Une adresse inconnue affiche une 404 chaleureuse avec « Retour à l’accueil ».
+
+- **Historique** : chaque changement d'écran ajoute une entrée (`pushState`). Retour et Avancer fonctionnent au clavier, à la souris, sur Android et avec les gestes du navigateur. La position de défilement est conservée dans `history.state` et restaurée au retour.
+- **Hors historique** : les feuilles « Ajouter » et filtres, le tutoriel et les célébrations ne créent jamais d'entrée. Un lien direct est rejoué après la connexion au lieu d'être perdu.
+- **Partage** : les boutons « Partager » de la fiche projet et du fil de question utilisent `navigator.share` quand il existe, sinon copient le lien absolu `https://bondev.ngassakindzaa.workers.dev/#/…` et affichent un toast. Le titre de l'onglet suit l'écran (`Accueil · Bondev`, `Recherche · Bondev`…).
+- **Recherches récentes** : cinq requêtes au maximum, sous le champ, dans `localStorage` (clé `bondev-recent-searches-v1`). Elles peuvent être retirées une à une, effacées ou désactivées (`bondev-recent-searches-disabled-v1`). Désactivées, un lien permet de les réactiver.
+- **Clavier et focus** : `Ctrl + K` (ou `⌘ + K`) et `/` ouvrent la recherche et placent le curseur dans le champ. `Échap` ferme la feuille « Ajouter », le panneau des filtres et le tutoriel. Un lien « Aller au contenu » précède la navigation, le titre du nouvel écran reçoit le focus, et le focus reste piégé dans les modales puis revient à l'élément d'origine.
+- **Formulaires** : Entrée envoie la recherche. Les champs titre et description affichent un compteur de caractères. Les brouillons de question et de projet sont conservés dans `localStorage` et signalés au retour (« Ton brouillon de la dernière visite a été restauré »). Quand le clavier virtuel s'ouvre, l'en-tête reste visible.
+
+Les tests du routeur (`src/lib/router.test.ts`) couvrent les routes connues, les identifiants invalides, les paramètres encodés, la 404 et l'aller-retour parseur/constructeur. La trilogie complète reste :
+
+```bash
+npm test
+npx tsc --noEmit
+npm run build
+```
+
+### Fichiers et vérifications
+
+Cette évolution touche principalement `src/lib/router.ts`, `src/lib/router.test.ts`, `src/lib/search.ts`, `src/lib/recentSearches.ts`, `src/lib/share.ts`, `src/components/ShareButton.tsx`, `src/components/ui.tsx`, `src/App.tsx`, `src/index.css`, `src/screens/EntraideScreen.tsx`, `src/screens/ShareProjectScreen.tsx`, `src/screens/types.ts` et `src/lib/motion.ts`.
+
+Vérifié dans Chromium sur la version de production : lien direct et rejeu après connexion, Retour/Avancer, restauration du défilement, 404, synchronisation `#/recherche?q=…` à la frappe, partage avec toast, `Ctrl + K`, `/`, `Échap`, lien d'évitement, focus du titre, brouillon et compteurs. Restent à confirmer sur un vrai téléphone : la feuille de partage native, l'en-tête quand le clavier virtuel s'ouvre, et le formulaire de publication avec un compte GitHub réel (le mode invité affiche une restriction).
+
 ## Catalogue de départ
 
 Le fichier `scripts/catalogue/repos.json` contient la liste de départ des dépôts GitHub (URL, titre, résumé français et étiquettes). Le script `scripts/catalogue/build-catalogue.mjs` vérifie chaque dépôt avec l'API GitHub, puis génère `supabase/catalogue_depart.sql`.
@@ -133,7 +171,7 @@ La progression est calculée **entièrement dans le navigateur**, en lecture seu
 - **Quête hebdomadaire** : trois missions — répondre à une question `beginner_ok`, publier un projet, donner un « Ça m'a servi ». Le défi collectif suit les questions résolues par toute la communauté dans la semaine, avec un objectif de 10 ; le badge « Défi de la semaine » est virtuel et réservé aux personnes actives cette semaine.
 - **Célébrations** : niveau, badge, quête et défi déclenchent une notification fluide. L'état « déjà vu » est enregistré par utilisateur dans `localStorage` ; le premier chargement enregistre la situation sans célébrer.
 - **Page d'aide** : « Comment ça marche » (Profil et menu) explique en français ou en anglais les 5 règles, les gains et dépenses, les paliers 1 / 3 / 6, les niveaux, la série, la quête et le défi. Un tutoriel de 3 écrans s'affiche à la première connexion, avec un bouton « Passer ».
-- **Économie de données** : l'interrupteur du Profil est activé par défaut si `navigator.connection.saveData` est vrai. Il coupe animations et flou, allège les ombres et reste mémorisé dans `localStorage`. `prefers-reduced-motion` est également respecté.
+- **Économie de données** : l'interrupteur du Profil est activé par défaut si `navigator.connection.saveData` est vrai. Il coupe animations, flou et retour haptique, allège les ombres et reste mémorisé dans `localStorage`. `prefers-reduced-motion` est également respecté.
 - **Cache** : `getProgress()` fait quelques requêtes parallèles plafonnées, garde la valeur 60 secondes en mémoire et conserve la dernière valeur dans `localStorage`. Hors-ligne, le profil et l'accueil affichent « Dernière mise à jour : … ». Le cache est invalidé après une réponse, une validation, une publication, un retrait ou un « Ça m'a servi ».
 
 Les règles de progression sont testées dans `src/lib/progress.test.ts` (seuils de niveaux, semaines UTC, série avec et sans joker, paliers et progression des badges, missions, défi atteint ou non).
@@ -181,10 +219,10 @@ Tailles du build de production (gzip) :
 
 | Élément | Avant | Après |
 |---|---|---|
-| Entrée principale | 174,58 kB | 109,18 kB |
+| Entrée principale | 174,58 kB | 113,27 kB |
 | Supabase | inclus | 55,16 kB (chunk séparé) |
-| CSS | 17,90 kB | 23,73 kB |
-| Écrans lazy | inclus | 3,05 à 8,68 kB chacun |
+| CSS | 17,90 kB | 30,23 kB |
+| Écrans lazy | inclus | 3,05 à 8,81 kB chacun |
 
 ## Design system
 
@@ -196,7 +234,7 @@ La refonte visuelle est centralisée **en fin de `src/index.css`**, après les r
 - **Rayons** : `--bd-radius-sm|md|lg|xl|pill` valent 12 / 16 / 22 / 28 / 999 px.
 - **Ombres** : douce, moyenne, halo de marque et danger.
 - **Espacements** : base 4 px, de `--bd-space-1` à `--bd-space-8`.
-- **Mouvement** : durées 120 / 200 / 320 / 520 ms, courbe `cubic-bezier(.2,.8,.2,1)` et ressort `cubic-bezier(.34,1.56,.64,1)`.
+- **Mouvement** : durées 120 / 200 / 320 / 520 ms, courbe `cubic-bezier(.2,.8,.2,1)` et ressort `cubic-bezier(.34,1.56,.64,1)`. La couche de mouvement ajoute 240 ms pour les changements d'écran, 600 ms pour le compteur de points, 380 ms pour la coche « Utile » et 40 ms par élément de cascade.
 
 ### Boutons
 
@@ -204,30 +242,62 @@ La refonte visuelle est centralisée **en fin de `src/index.css`**, après les r
 - **Contour** : bordure dégradée de 2 px, fond transparent, texte et icône en dégradé.
 - **Ghost**, **danger** et **icône seule** : variantes dédiées, tailles `.btn-sm` et `.btn-lg`, cibles d'au moins 44 px.
 - **États** : `:focus-visible` avec anneau de marque, `:disabled` atténué, `[aria-busy="true"]` avec pulsation discrète. Tous les boutons utilisent `-webkit-tap-highlight-color: transparent` et `touch-action: manipulation`.
-- **Recherche** : le bouton loupe reprend la variante contour, avec un `linearGradient` SVG pour la loupe et un rebond au survol, au focus et à l'appui.
+- **Recherche** : le bouton loupe reprend la variante contour, avec un `linearGradient` SVG pour la loupe et un rebond au survol, au focus et à l'appui. La barre de recherche, elle, ne se soulève pas et ne change pas d'apparence au focus.
 
 ### Navigation
 
 - Barre basse sur mobile, barre latérale sur tablette et ordinateur.
-- L'icône active est **remplie en dégradé** (`FILLED_ICONS` + `url(#brand-gradient)`), l'icône inactive reste en trait fin gris.
-- Un indicateur glisse d'un onglet à l'autre avec un ressort ; sa position est mesurée dans le DOM (`ResizeObserver`, chargement, polices, redimensionnement).
-- L'icône active passe à l'échelle `1.08` avec un rebond, et son libellé est en dégradé.
-- Les trois états du menu latéral (fermé, survolé, épinglé) conservent le même alignement.
+- L'icône active est **remplie en dégradé** (`FILLED_ICONS` + `url(#brand-gradient)`), l'icône inactive reste en trait fin gris. Les boutons de navigation n'ont plus de conteneur visuel : l'icône est rendue directement dans le bouton.
+- L'onglet actif est marqué immédiatement, dans la même image que le nouvel écran (aucun indicateur séparé) ; son icône garde la grille de 22 px et son libellé est en dégradé.
+- Sur mobile, les cinq SVG mesurent 22 × 22 px et partagent le même axe : tous les libellés restent sur la même ligne de base.
+- Le bouton « + » utilise la même icône de 22 px et le même axe que les autres entrées ; l'ancien cercle de 44 × 44 px est abandonné pour ne pas casser l'alignement.
+- Les trois états du menu latéral (fermé, survolé, épinglé) conservent le même alignement ; son déploiement est instantané et seuls les libellés animent opacité et translation.
 
 ### Champs et sélections
 
-- Champs, zones de texte, sélections et barre de recherche partagent les surfaces, bordures et rayons des tokens ; le focus affiche un anneau de marque.
+- Champs, zones de texte et sélections partagent les surfaces, bordures et rayons des tokens ; le focus affiche un anneau de marque.
+- La barre de recherche fait exception : elle garde exactement son apparence de repos au survol, au clic et au focus, sans contour, changement de fond ou de bordure, ni soulèvement.
 - La case à cocher des filtres a une coche animée et un fond dégradé ; l'interrupteur glisse avec un ressort.
 - Le remplissage automatique de Chrome est neutralisé par `:-webkit-autofill` et la surface du thème. Les champs portent `autocomplete`, `inputmode`, `enterkeyhint` et `spellcheck` adaptés.
+
+### Mouvement
+
+La couche de mouvement vit dans `src/lib/motion.ts` (règles pures), `src/components/motion.tsx` (compteurs, barres, confettis), `src/lib/viewTransition.ts` (transitions d'écran) et `src/lib/haptics.ts` (vibration). Elle n'ajoute aucune dépendance et ne change ni le contenu ni la logique métier. Ses règles sont testées dans `src/lib/motion.test.ts` (courbe du compteur, plafond de cascade, sens des transitions).
+
+- **Principes** : toutes les animations de déplacement et de taille passent par `transform` et `opacity` ; les transitions restantes de couleur, bordure ou ombre accompagnent des changements d'état (survol, focus, actif) et ne servent jamais de mouvement. Aucun `will-change` permanent, aucune animation de `backdrop-filter`. La coche « Utile ✓ » est la seule exception CSS de dessin (`stroke-dashoffset`) ; les confettis utilisent un canvas dédié, limité à 40 particules.
+- **Écrans** : `document.startViewTransition` quand il existe, avec un glissement directionnel de 240 ms ; repli fondu + glissement de 200 ms sinon. L'onglet actif est peint dans la même image que le nouvel écran (`flushSync`), et chaque écran retrouve sa position de défilement.
+- **Listes** : cascade de 40 ms par élément, plafonnée à 10 éléments et rejouée une seule fois par affichage. Les squelettes utilisent un shimmer aux couleurs de la marque, sans saut de mise en page.
+- **Points et progression** : compteur de 600 ms ralenti en fin de course, puce `+3` / `−1`, barres remplies par `scaleX` avec un ressort de 720 ms. Les confettis maison sont limités à 40 particules et s'arrêtent après 1,5 s ; le niveau reçoit une carte avec emblème.
+- **Micro-interactions** : soulèvement et inclinaison de 1,2° sur pointeur fin, retour d'appui sur les cartes cliquables, feuilles et panneau de filtres avec ressort, toasts empilés, fondu croisé des onglets de l'Entraide, ombre d'en-tête au défilement et bouton « Remonter ».
+- **Validation** : coche « Utile ✓ » dessinée en `stroke-dashoffset`, vibration `navigator.vibrate(10)` sur validation et célébration. L'interrupteur **Retour haptique** du Profil est actif par défaut et se coupe avec l'Économie de données.
+- **Désactivation** : `prefers-reduced-motion: reduce` et l'Économie de données coupent les View Transitions, les confettis, les squelettes animés et ramènent les durées à environ 0 ms. L'Économie de données coupe aussi l'haptique.
+- **Mesures** : Lighthouse mobile 93 avant, 95 après sur la page publique (FCP 2,1 s, LCP 2,5–2,6 s, TBT 80 ms, CLS 0). L'audit de l'accueil connecté, qui charge les données Supabase, varie de 81 à 88 selon la charge de la machine. À 4× CPU sur 390 × 844, le défilement, l'ouverture de la feuille, le focus, les onglets et les barres restent autour de 16,7 ms ; les seuls dépassements (50–283 ms) coïncident avec le rendu d'un nouvel écran ou d'une View Transition, et existent aussi avec l'Économie de données activée, donc sans animation.
 
 ### Accessibilité et préférences
 
 - Contrastes AA, focus visible et cibles tactiles de 44 px minimum.
-- `prefers-reduced-motion` supprime animations et transitions.
-- Le mode **Économie de données** coupe le flou, les animations et allège les ombres.
+- `prefers-reduced-motion` supprime animations, transitions et View Transitions.
+- Le mode **Économie de données** coupe le flou, les animations, l'haptique et allège les ombres.
 - Le traducteur observait chaque frappe : il est désormais temporisé à 90 ms pour éviter les repeints en cascade.
 
-Les captures avant/après sont dans `docs/screens/` (non versionnées, 11 fichiers, largeur maximale 1180 px) : accueil, recherche, Entraide et profil, en mobile et ordinateur, thèmes sombre et clair. La capture `avant-accueil-mobile-sombre.jpg` montre la bannière invitée anormalement haute et le rideau blanc corrigés.
+Les captures avant/après sont dans `docs/screens/` (non versionnées, 12 fichiers, largeur maximale 1280 px) : accueil, recherche, Entraide et profil, en mobile et ordinateur, thèmes sombre et clair. Les vues desktop ouvrent la barre latérale pour montrer le logo et les libellés ; les vues mobiles gardent la navigation basse. La capture `avant-accueil-mobile-sombre.jpg` montre la bannière invitée anormalement haute et le rideau blanc corrigés ; `profil-mobile-sombre-haptique.jpg` montre l'interrupteur « Retour haptique ».
+
+## Direction artistique
+
+La direction artistique pousse l'interface vers un rendu premium, moderne et artistique, sans changer le contenu ni la logique métier, sans dépendance et sans ressource distante au runtime.
+
+- **Typographie** : Montserrat variable auto-hébergée (`public/fonts/montserrat-latin-var.woff2`, 400–700, sous-ensemble latin, `font-display: swap`), préchargée depuis `index.html`. Les titres utilisent une échelle fluide `clamp()`, un interlettrage resserré ; les chiffres sont tabulaires et les grands nombres passent en dégradé.
+- **Ambiance** : trois halos flous animés en 36 s sur le pseudo-élément `::before` isolé de `.phone`, grain SVG à 3,2 %, pause quand l'onglet est caché (`data-activity="hidden"`), désactivation avec `prefers-reduced-motion` ou l'Économie de données. Le thème clair reprend les mêmes halos en pastel.
+- **Matières** : cartes en verre à plusieurs couches, bordure dégradée de 1 px via `mask`, reflet intérieur et élévation cohérente ; monogrammes déterministes pour les projets, emblèmes SVG pour les six niveaux, anneaux d'avatar selon le niveau et illustrations inline pour les états vides, hors-ligne et erreurs.
+- **Icônes** : grille de 24 px, trait 1,75, bouts arrondis, tailles unifiées ; le remplissage est réservé à l'état actif et aux célébrations. Le « + » de la navigation reprend la taille et l'axe des autres icônes.
+- **Lancement** : splash HTML/CSS pur dans `index.html` (logo local pulsé, ligne de progression, styles clair et sombre), fondu déclenché au montage de React. Le manifest reprend le nom, les couleurs et les icônes de la marque.
+- **En-tête et navigation** : l'en-tête n'a plus de fond, de backdrop ni de conteneur ; le logo de la barre latérale est visible dès 640 px et masqué dans la grille mobile à cinq boutons.
+
+Poids CSS : **26,54 kB → 30,23 kB gzip** (+3,69 kB), sous le budget de 10 kB. Les animations restent sur `transform` et `opacity`, avec `prefers-reduced-motion` et Économie de données.
+
+Fichiers modifiés : `index.html`, `src/main.tsx`, `src/index.css`, `src/App.tsx`, `src/components/ui.tsx`, `src/components/motion.tsx`, `src/lib/motion.ts`, `src/lib/viewTransition.ts`, `src/lib/haptics.ts`, `src/lib/motion.test.ts`, `src/screens/ProfileScreen.tsx`, `src/screens/EntraideScreen.tsx`, `public/fonts/montserrat-latin-var.woff2` et `README.md`.
+
+Points non vérifiés : Safari/iOS et appareils physiques, lecteurs d'écran, clavier virtuel réel et zoom texte natif à 200 %. L'audit Lighthouse de l'accueil connecté reste variable (81–88) selon la charge de la machine ; la page publique, elle, mesure 95.
 
 ## Affichage responsive
 
@@ -276,7 +346,7 @@ npm run build
 |---|---|
 | `npm install` | Télécharge les outils nécessaires (à faire une fois, ou après une mise à jour) |
 | `npm run dev` | Lance le site en mode développement, il se met à jour tout seul |
-| `npm test` | Lance les tests Vitest (recherche, Entraide et progression) |
+| `npm test` | Lance les tests Vitest (recherche, routeur, Entraide et progression) |
 | `npm run catalogue:build` | Régénère `supabase/catalogue_depart.sql` depuis `scripts/catalogue/repos.json` |
 | `npm run build` | Prépare la version finale dans le dossier `dist` |
 | `npm run preview` | Teste la version finale en local |
@@ -291,7 +361,7 @@ bondev/
 │   ├── App.tsx       Connexion, accueil, résultats, fiche projet, navigation et chargement des écrans
 │   ├── screens/      Écrans lourds chargés à la demande (Entraide, Profil, Règles, Partage)
 │   ├── components/   Briques partagées (en-tête, boutons, bannière et restriction invité)
-│   ├── lib/          Accès Supabase, recherche, Entraide, progression, mode invité, GitHub et dates
+│   ├── lib/          Accès Supabase, recherche, routeur, partage, Entraide, progression, mode invité, GitHub et dates
 │   └── index.css     Tout le style (thème sombre/clair, mobile, tablette, ordinateur)
 ├── scripts/
 │   └── catalogue/    Liste des dépôts et générateur du catalogue de départ

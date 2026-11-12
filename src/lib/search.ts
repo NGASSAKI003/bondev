@@ -692,7 +692,7 @@ function fieldMatches(normalisedField: string, term: string): boolean {
   return words.some((word) => word === needle || word.startsWith(needle))
 }
 
-function findConcepts(query: string): SearchConcept[] {
+export function findConcepts(query: string): SearchConcept[] {
   const normalised = normalizeSearchText(query)
   if (!normalised) return []
 
@@ -716,7 +716,7 @@ function findConcepts(query: string): SearchConcept[] {
     .map((match) => match.concept)
 }
 
-function queryTokens(query: string): string[] {
+export function queryTokens(query: string): string[] {
   const normalised = normalizeSearchText(query)
   if (!normalised) return []
   const seen = new Set<string>()
@@ -999,3 +999,31 @@ export function searchProjects<T extends SearchableProject>(
     understoodEn: understoodPhrase(concepts, tokens, 'en'),
   }
 }
+
+/**
+ * Fragments d'un texte à mettre en avant dans les résultats. Le découpage
+ * conserve la ponctuation et les espaces : l'interface peut rendre le texte
+ * d'origine à l'identique, seuls les mots reconnus passent dans un `<mark>`.
+ */
+export type HighlightPart = { text: string; match: boolean }
+
+export function splitHighlight(
+  text: string,
+  tokens: readonly string[],
+): HighlightPart[] {
+  if (!text) return []
+  if (tokens.length === 0) return [{ text, match: false }]
+  return text.split(/(\s+)/).map((chunk) => {
+    if (!chunk || /^\s+$/.test(chunk)) return { text: chunk, match: false }
+    const word = normalizeSearchText(chunk)
+    const match = Boolean(
+      word &&
+        tokens.some(
+          (token) =>
+            word === token || (token.length > 4 && word.startsWith(token)),
+        ),
+    )
+    return { text: chunk, match }
+  })
+}
+

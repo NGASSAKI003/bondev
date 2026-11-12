@@ -36,7 +36,11 @@ import {
   type QuestionFormErrors,
   type QuestionFormField,
 } from '../lib/help'
-import { Header, Icon, Primary, initialsFor } from '../components/ui'
+import { Header, Icon, Primary, StateArt, initialsFor, toneFor } from '../components/ui'
+import { ShareButton } from '../components/ShareButton'
+import { shareUrlFor } from '../lib/share'
+import { crossfadeWithMotion } from '../lib/viewTransition'
+import { vibrate } from '../lib/haptics'
 import type { Screen } from './types'
 
 const QUESTION_DRAFT_PREFIX = 'bondev-question-draft-v1'
@@ -79,6 +83,17 @@ const EMPTY_QUESTION_DRAFT: QuestionDraft = {
   tier: 1,
   githubUrl: '',
   beginnerOk: false,
+}
+
+function questionDraftHasContent(draft: QuestionDraft): boolean {
+  return Boolean(
+    draft.title.trim() ||
+      draft.body.trim() ||
+      draft.technologies.trim() ||
+      draft.githubUrl.trim() ||
+      draft.beginnerOk ||
+      draft.tier !== 1,
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -170,8 +185,11 @@ function HelpAvatar({
   const avatar = author.avatar_url.startsWith('https://')
     ? author.avatar_url
     : ''
+  const tone = toneFor(`${author.pseudo}:${author.display_name}`)
   return (
-    <span className={`help-avatar ${size === 'small' ? 'small' : ''}`}>
+    <span
+      className={`help-avatar tone-${tone} ${size === 'small' ? 'small' : ''}`}
+    >
       {avatar ? <img src={avatar} alt="" /> : initialsFor(name, author.pseudo)}
     </span>
   )
@@ -185,6 +203,20 @@ function QuestionSkeleton() {
       <span className="skeleton-line" />
       <span className="skeleton-line short" />
     </article>
+  )
+}
+
+/** Coche « Utile » dessinée par stroke-dashoffset à l'apparition du badge. */
+function UsefulCheck() {
+  return (
+    <svg
+      className="useful-check"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M4.5 12.5 9.5 17.5 19.5 6.5" pathLength="1" />
+    </svg>
   )
 }
 
@@ -269,6 +301,11 @@ export function Help({ go, openQuestion }: { go: (s: Screen) => void; openQuesti
           ? 'Be the first to ask, or come back soon to help someone.'
           : 'Sois le premier à demander, ou reviens bientôt aider quelqu’un.'
 
+  const selectTab = (id: QuestionTab) => {
+    if (id === tab) return
+    crossfadeWithMotion(() => setTab(id))
+  }
+
   return (
     <main className="screen">
       <Header title="Entraide" />
@@ -290,7 +327,7 @@ export function Help({ go, openQuestion }: { go: (s: Screen) => void; openQuesti
             role="tab"
             aria-selected={tab === item.id}
             className={tab === item.id ? 'active' : ''}
-            onClick={() => setTab(item.id)}
+            onClick={() => selectTab(item.id)}
           >
             {lang === 'en' ? item.en : item.fr}
           </button>
@@ -325,86 +362,84 @@ export function Help({ go, openQuestion }: { go: (s: Screen) => void; openQuesti
         </label>
       </div>
 
-      {error ? (
-        <section className="glass help-state" role="alert">
-          <div>
-            <Icon name="wifi" size={28} />
-          </div>
-          <h2>{lang === 'en' ? 'The questions are unavailable' : 'Les questions sont indisponibles'}</h2>
-          <p>{error}</p>
-          <button className="secondary help-retry" onClick={() => setReload((value) => value + 1)}>
-            {lang === 'en' ? 'Try again' : 'Réessayer'}
-          </button>
-        </section>
-      ) : questions === null ? (
-        <section className="list question-list" aria-busy="true" aria-live="polite">
-          {[0, 1, 2].map((item) => (
-            <QuestionSkeleton key={item} />
-          ))}
-        </section>
-      ) : questions.length === 0 ? (
-        <section className="glass empty help-empty">
-          <div>
-            <Icon name="handshake" size={30} />
-          </div>
-          <h2>{emptyTitle}</h2>
-          <p>{emptyText}</p>
-          {tab === 'mine' && (
-            <Primary onClick={() => go('add')} icon="plus">
-              Poser ma question
-            </Primary>
-          )}
-        </section>
-      ) : (
-        <section className="list question-list">
-          {questions.map((question) => (
-            <button
-              className="glass request question-card"
-              key={question.id}
-              type="button"
-              onClick={() => openQuestion(question.id)}
-            >
-              <div className="question-card-top">
-                <span className={`status-pill ${question.status}`}>
-                  {statusLabel(question.status, lang)}
-                </span>
-                <span className="tier-pill">
-                  {tierLabel(question.tier, lang)} · {pointsLabel(question.tier, lang)}
-                </span>
-              </div>
-              <div className="question-card-tags">
-                {question.beginner_ok && (
-                  <span className="mentor-tag">
-                    {lang === 'en'
-                      ? 'Beginners welcome · +1 mentor bonus'
-                      : 'Débutant bienvenu · +1 bonus mentor'}
-                  </span>
-                )}
-                {question.is_free && (
-                  <span className="free-pill">
-                    {lang === 'en' ? 'Free question' : 'Question gratuite'}
-                  </span>
-                )}
-              </div>
-              <h3>{question.title}</h3>
-              <p>
-                {question.technologies.slice(0, 3).join(' · ') ||
-                  (lang === 'en' ? 'No technology specified' : 'Technologie non précisée')}
-              </p>
-              <div className="question-meta">
-                <span>{answerCountLabel(question.answer_count, lang)}</span>
-                {question.status === 'open' && (
-                  <span>{formatTimeLeft(question.expires_at, lang)}</span>
-                )}
-                <span>@{question.author.pseudo}</span>
-              </div>
-              <span className="help-link">
-                {lang === 'en' ? 'View question' : 'Voir la question'} <Icon name="arrow" size={18} />
-              </span>
+      <div className="help-results">
+        {error ? (
+          <section className="glass help-state" role="alert">
+            <StateArt kind="error" />
+            <h2>{lang === 'en' ? 'The questions are unavailable' : 'Les questions sont indisponibles'}</h2>
+            <p>{error}</p>
+            <button className="secondary help-retry" onClick={() => setReload((value) => value + 1)}>
+              {lang === 'en' ? 'Try again' : 'Réessayer'}
             </button>
-          ))}
-        </section>
-      )}
+          </section>
+        ) : questions === null ? (
+          <section className="list question-list" aria-busy="true" aria-live="polite">
+            {[0, 1, 2].map((item) => (
+              <QuestionSkeleton key={item} />
+            ))}
+          </section>
+        ) : questions.length === 0 ? (
+          <section className="glass empty help-empty">
+            <StateArt kind="help" />
+            <h2>{emptyTitle}</h2>
+            <p>{emptyText}</p>
+            {tab === 'mine' && (
+              <Primary onClick={() => go('add')} icon="plus">
+                Poser ma question
+              </Primary>
+            )}
+          </section>
+        ) : (
+          <section className="list question-list">
+            {questions.map((question) => (
+              <button
+                className="glass request question-card"
+                key={question.id}
+                type="button"
+                onClick={() => openQuestion(question.id)}
+              >
+                <div className="question-card-top">
+                  <span className={`status-pill ${question.status}`}>
+                    {statusLabel(question.status, lang)}
+                  </span>
+                  <span className="tier-pill">
+                    {tierLabel(question.tier, lang)} · {pointsLabel(question.tier, lang)}
+                  </span>
+                </div>
+                <div className="question-card-tags">
+                  {question.beginner_ok && (
+                    <span className="mentor-tag">
+                      {lang === 'en'
+                        ? 'Beginners welcome · +1 mentor bonus'
+                        : 'Débutant bienvenu · +1 bonus mentor'}
+                    </span>
+                  )}
+                  {question.is_free && (
+                    <span className="free-pill">
+                      {lang === 'en' ? 'Free question' : 'Question gratuite'}
+                    </span>
+                  )}
+                </div>
+                <h3>{question.title}</h3>
+                <p>
+                  {question.technologies.slice(0, 3).join(' · ') ||
+                    (lang === 'en' ? 'No technology specified' : 'Technologie non précisée')}
+                </p>
+                <div className="question-meta">
+                  <span>{answerCountLabel(question.answer_count, lang)}</span>
+                  {question.status === 'open' && (
+                    <span>{formatTimeLeft(question.expires_at, lang)}</span>
+                  )}
+                  <span>@{question.author.pseudo}</span>
+                </div>
+                <span className="help-link">
+                  {lang === 'en' ? 'View question' : 'Voir la question'} <Icon name="arrow" size={18} />
+                </span>
+              </button>
+            ))}
+          </section>
+        )}
+      </div>
     </main>
   )
 }
@@ -498,6 +533,7 @@ export function QuestionThread({
     setNotice(null)
     try {
       await validateAnswer(answer.id)
+      vibrate(10)
       await refreshStats()
       notifyProgressChanged({ celebration: 'validated' })
       setNotice(
@@ -681,9 +717,7 @@ export function QuestionThread({
       <main className="screen">
         <Header title="Entraide" back={back} />
         <section className="glass help-state" role="alert">
-          <div>
-            <Icon name="wifi" size={28} />
-          </div>
+          <StateArt kind="error" />
           <h2>{lang === 'en' ? 'This question is unavailable' : 'Cette question est indisponible'}</h2>
           <p>{error}</p>
           <button className="secondary help-retry" onClick={() => setReload((value) => value + 1)}>
@@ -776,6 +810,13 @@ export function QuestionThread({
           )}
           <span>{question.technologies.join(' · ')}</span>
         </div>
+        <div className="thread-share">
+          <ShareButton
+            url={shareUrlFor({ name: 'question', id: question.id })}
+            title={question.title}
+            text={question.body.slice(0, 140)}
+          />
+        </div>
 
         {question.status === 'expired' && (
           <div className="help-notice animated">
@@ -865,7 +906,10 @@ export function QuestionThread({
                     {answer.level ? ` · ${answer.level}` : ''}
                   </small>
                   {answer.is_useful && (
-                    <em>{lang === 'en' ? 'Useful ✓' : 'Utile ✓'}</em>
+                    <em className="useful-badge">
+                      <UsefulCheck />
+                      {lang === 'en' ? 'Useful' : 'Utile'}
+                    </em>
                   )}
                 </div>
 
@@ -1067,9 +1111,11 @@ export function QuestionThread({
 export function Add({
   go,
   onPosted,
+  back,
 }: {
   go: (s: Screen) => void
   onPosted: (questionId: string) => void
+  back: () => void
 }) {
   const lang = useLang()
   const online = useOnline()
@@ -1077,6 +1123,9 @@ export function Add({
   const userId = user?.id ?? 'anon'
   const draftKey = `${QUESTION_DRAFT_PREFIX}:${userId}`
   const [draft, setDraft] = useState<QuestionDraft>(() => readQuestionDraft(draftKey))
+  const [draftRestored, setDraftRestored] = useState(() =>
+    questionDraftHasContent(draft),
+  )
   const [fieldErrors, setFieldErrors] = useState<QuestionFormErrors>({})
   const [freeAvailable, setFreeAvailable] = useState<boolean | null>(null)
   const [freeError, setFreeError] = useState<string | null>(null)
@@ -1104,15 +1153,10 @@ export function Add({
   }, [userId, freeReload])
 
   useEffect(() => {
-    const empty =
-      !draft.title.trim() &&
-      !draft.body.trim() &&
-      !draft.technologies.trim() &&
-      !draft.githubUrl.trim() &&
-      !draft.beginnerOk &&
-      draft.tier === 1
+    const empty = !questionDraftHasContent(draft)
     if (empty) {
       clearDraft(draftKey)
+      setDraftRestored(false)
       return
     }
     writeDraft(draftKey, draft)
@@ -1248,10 +1292,30 @@ export function Add({
 
   return (
     <main className="screen">
-      <Header title="Demander de l’aide" back={() => go('help')} />
+      <Header title="Demander de l'aide" back={back} />
       <form className="form help-ask-form" onSubmit={(event) => void handleSubmit(event)}>
         <p className="eyebrow">Explique simplement</p>
         <h2>Où es-tu bloqué ?</h2>
+        {draftRestored && (
+          <p className="draft-note" role="status">
+            {lang === 'en'
+              ? 'Your draft from the last visit was restored.'
+              : 'Ton brouillon de la dernière visite a été restauré.'}{' '}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => {
+                clearDraft(draftKey)
+                setDraft(EMPTY_QUESTION_DRAFT)
+                setDraftRestored(false)
+                setFieldErrors({})
+                setError(null)
+              }}
+            >
+              {lang === 'en' ? 'Start over' : 'Repartir de zéro'}
+            </button>
+          </p>
+        )}
 
         <label>
           <span>{lang === 'en' ? 'Question title' : 'Titre de la question'}</span>
@@ -1275,7 +1339,10 @@ export function Add({
           <small id="question-title-help" className="field-help">
             {lang === 'en'
               ? `${QUESTION_TITLE_MIN} to ${QUESTION_TITLE_MAX} characters.`
-              : `Entre ${QUESTION_TITLE_MIN} et ${QUESTION_TITLE_MAX} caractères.`}
+              : `Entre ${QUESTION_TITLE_MIN} et ${QUESTION_TITLE_MAX} caractères.`}{' '}
+            <span className="char-count">
+              {draft.title.length} / {QUESTION_TITLE_MAX}
+            </span>
           </small>
           {fieldErrors.title && (
             <small id="question-title-error" className="inline-error field-error" role="alert">
@@ -1304,7 +1371,11 @@ export function Add({
           <small id="question-body-help" className="field-help">
             {lang === 'en'
               ? `${QUESTION_BODY_MIN} to ${QUESTION_BODY_MAX.toLocaleString('en-US')} characters.`
-              : `Entre ${QUESTION_BODY_MIN} et ${QUESTION_BODY_MAX.toLocaleString('fr-FR')} caractères.`}
+              : `Entre ${QUESTION_BODY_MIN} et ${QUESTION_BODY_MAX.toLocaleString('fr-FR')} caractères.`}{' '}
+            <span className="char-count">
+              {draft.body.length} /{' '}
+              {QUESTION_BODY_MAX.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR')}
+            </span>
           </small>
           {fieldErrors.body && (
             <small id="question-body-error" className="inline-error field-error" role="alert">

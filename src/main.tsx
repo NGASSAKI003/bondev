@@ -4,6 +4,12 @@ import App from './App'
 import './index.css'
 import { startTranslator } from './i18n'
 import { AuthProvider } from './lib/auth'
+import {
+  applyEffects,
+  probeFrameMedian,
+  readEffectsPreference,
+  writeEffectsPreference,
+} from './lib/effects'
 import { supabaseConfigError } from './lib/supabase'
 
 startTranslator()
@@ -33,6 +39,36 @@ function syncRuntimePreferences() {
 }
 
 syncRuntimePreferences()
+
+/**
+ * Applique le mode d'effets avant React : les signaux matériels (saveData,
+ * mémoire, cœurs) sont immédiats. Une sonde de 2 s affine ensuite le choix
+ * sur les appareils qui semblent puissants mais rament au démarrage.
+ */
+let effectsPreference = readEffectsPreference(
+  typeof localStorage === 'undefined' ? null : localStorage,
+)
+writeEffectsPreference(
+  effectsPreference,
+  typeof localStorage === 'undefined' ? null : localStorage,
+)
+applyEffects(effectsPreference)
+
+const probeEffects = () => {
+  if (effectsPreference !== 'auto') return
+  if (document.documentElement.dataset.effects === 'light') return
+  if (document.visibilityState !== 'visible') return
+  void probeFrameMedian().then(() => applyEffects(effectsPreference))
+}
+
+if (document.readyState === 'complete') {
+  window.setTimeout(probeEffects, 320)
+} else {
+  window.addEventListener('load', () => window.setTimeout(probeEffects, 320), {
+    once: true,
+  })
+}
+
 document.addEventListener('visibilitychange', syncRuntimePreferences)
 
 /** Fait disparaître le splash HTML après le montage de React. */

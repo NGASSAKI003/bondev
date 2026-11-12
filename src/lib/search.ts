@@ -680,8 +680,23 @@ export function normalizeSearchText(value: string): string {
     .trim()
 }
 
-function fieldMatches(normalisedField: string, term: string): boolean {
-  const needle = normalizeSearchText(term)
+/**
+ * Dictionnaire déjà normalisé : les mots-clés sont statiques et n'ont pas à
+ * être ré-accentués une fois par projet à chaque frappe.
+ */
+const NORMALISED_BY_CONCEPT = new Map<SearchConcept, string[]>(
+  SEARCH_CONCEPTS.map((concept) => [
+    concept,
+    concept.keywords
+      .map((keyword) => normalizeSearchText(keyword))
+      .filter(Boolean),
+  ]),
+)
+
+function fieldMatchesNormalised(
+  normalisedField: string,
+  needle: string,
+): boolean {
   if (!needle) return false
   const haystack = ` ${normalisedField} `
   if (needle.includes(' ')) return haystack.includes(` ${needle} `)
@@ -692,6 +707,10 @@ function fieldMatches(normalisedField: string, term: string): boolean {
   return words.some((word) => word === needle || word.startsWith(needle))
 }
 
+function fieldMatches(normalisedField: string, term: string): boolean {
+  return fieldMatchesNormalised(normalisedField, normalizeSearchText(term))
+}
+
 export function findConcepts(query: string): SearchConcept[] {
   const normalised = normalizeSearchText(query)
   if (!normalised) return []
@@ -699,9 +718,9 @@ export function findConcepts(query: string): SearchConcept[] {
   const matches: { concept: SearchConcept; position: number }[] = []
   for (const concept of SEARCH_CONCEPTS) {
     let position = Number.POSITIVE_INFINITY
-    for (const keyword of concept.keywords) {
-      if (!fieldMatches(normalised, keyword)) continue
-      const index = normalised.indexOf(normalizeSearchText(keyword))
+    for (const keyword of NORMALISED_BY_CONCEPT.get(concept) ?? []) {
+      if (!fieldMatchesNormalised(normalised, keyword)) continue
+      const index = normalised.indexOf(keyword)
       if (index >= 0 && index < position) position = index
     }
     if (position !== Number.POSITIVE_INFINITY) {
@@ -737,13 +756,36 @@ export function queryTokens(query: string): string[] {
 function conceptKeywordWords(concepts: SearchConcept[]): Set<string> {
   const words = new Set<string>()
   for (const concept of concepts) {
-    for (const keyword of concept.keywords) {
-      for (const word of normalizeSearchText(keyword).split(' ')) {
+    for (const keyword of NORMALISED_BY_CONCEPT.get(concept) ?? []) {
+      for (const word of keyword.split(' ')) {
         if (word) words.add(word)
       }
     }
   }
   return words
+}
+
+/**
+ * Champs normalisés d'un projet. Les objets projet viennent du cache de l'API
+ * et restent stables : on évite de re-normaliser 200 descriptions à chaque
+ * frappe dans la recherche.
+ */
+const PROJECT_FIELDS = new WeakMap<
+  SearchableProject,
+  Record<SearchField, string>
+>()
+
+function fieldsFor(project: SearchableProject): Record<SearchField, string> {
+  const cached = PROJECT_FIELDS.get(project)
+  if (cached) return cached
+  const fields: Record<SearchField, string> = {
+    tags: normalizeSearchText(project.tags.join(' ')),
+    technologies: normalizeSearchText(project.technologies.join(' ')),
+    title: normalizeSearchText(project.title),
+    description: normalizeSearchText(project.description),
+  }
+  PROJECT_FIELDS.set(project, fields)
+  return fields
 }
 
 type Scored<T extends SearchableProject> = {
@@ -758,22 +800,20 @@ function scoreProject<T extends SearchableProject>(
   concepts: SearchConcept[],
   tokens: string[],
 ): Scored<T> | null {
-  const fields: Record<SearchField, string> = {
-    tags: normalizeSearchText(project.tags.join(' ')),
-    technologies: normalizeSearchText(project.technologies.join(' ')),
-    title: normalizeSearchText(project.title),
-    description: normalizeSearchText(project.description),
-  }
+  const fields = fieldsFor(project)
 
   const matchedFields = new Set<SearchField>()
   const matchedConcepts: SearchConcept[] = []
   let score = 0
 
   for (const concept of concepts) {
+    const keywords = NORMALISED_BY_CONCEPT.get(concept) ?? []
     let matched = false
     for (const field of FIELD_ORDER) {
       if (
-        concept.keywords.some((keyword) => fieldMatches(fields[field], keyword))
+        keywords.some((keyword) =>
+          fieldMatchesNormalised(fields[field], keyword),
+        )
       ) {
         score += CONCEPT_FIELD_SCORE[field]
         matchedFields.add(field)
@@ -785,7 +825,7 @@ function scoreProject<T extends SearchableProject>(
 
   for (const token of tokens) {
     for (const field of FIELD_ORDER) {
-      if (fieldMatches(fields[field], token)) {
+      if (fieldMatchesNormalised(fields[field], token)) {
         score += TOKEN_FIELD_SCORE[field]
         matchedFields.add(field)
       }

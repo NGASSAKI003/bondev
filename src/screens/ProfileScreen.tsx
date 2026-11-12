@@ -6,7 +6,11 @@ import {
   type LedgerEntry,
   type ProgressResult,
 } from '../lib/api'
-import { useAuth } from '../lib/auth'
+import {
+  useAuthActions,
+  useAuthSession,
+  useAuthStats,
+} from '../lib/auth'
 import {
   BADGE_FAMILY_META,
   COMMUNITY_META,
@@ -37,6 +41,7 @@ import {
   vibrate,
   writeHapticsEnabled,
 } from '../lib/haptics'
+import type { EffectsPreference } from '../lib/effects'
 import type { Screen } from './types'
 
 function BadgeFamilyCard({
@@ -284,6 +289,8 @@ export function Profile({
   onRefreshProgress,
   dataSaver,
   onDataSaverChange,
+  effectsPreference,
+  onEffectsPreferenceChange,
 }: {
   go: (s: Screen) => void
   progressResult: ProgressResult | null
@@ -292,18 +299,12 @@ export function Profile({
   onRefreshProgress: () => void
   dataSaver: boolean
   onDataSaverChange: (value: boolean) => void
+  effectsPreference: EffectsPreference
+  onEffectsPreferenceChange: (value: EffectsPreference) => void
 }) {
-  const {
-    user,
-    profile,
-    profileError,
-    stats,
-    statsLoading,
-    statsError,
-    signOut,
-    refreshProfile,
-    refreshStats,
-  } = useAuth()
+  const { user, profile, profileError } = useAuthSession()
+  const { stats, statsLoading, statsError } = useAuthStats()
+  const { signOut, refreshProfile, refreshStats } = useAuthActions()
   const lang = useLang()
   const [ledger, setLedger] = useState<LedgerEntry[] | null>(null)
   const [ledgerError, setLedgerError] = useState<string | null>(null)
@@ -617,6 +618,52 @@ export function Profile({
             </>
           ) : null}
 
+          <section className="glass effects-row">
+            <div>
+              <b>{lang === 'en' ? 'Visual effects' : 'Effets visuels'}</b>
+              <small>
+                {effectsPreference === 'auto'
+                  ? document.documentElement.dataset.effects === 'light'
+                    ? lang === 'en'
+                      ? 'Auto: light mode on this device.'
+                      : 'Auto : mode léger sur cet appareil.'
+                    : lang === 'en'
+                      ? 'Auto: full effects, adapted if the device slows down.'
+                      : 'Auto : effets complets, allégés si l’appareil ralentit.'
+                  : effectsPreference === 'light'
+                    ? lang === 'en'
+                      ? 'Static background, no blur, no confetti.'
+                      : 'Fond statique, sans flou ni confettis.'
+                    : lang === 'en'
+                      ? 'Halos, blur and animations stay on.'
+                      : 'Halos, flou et animations restent actifs.'}
+              </small>
+            </div>
+            <div
+              className="effects-choice"
+              role="radiogroup"
+              aria-label={lang === 'en' ? 'Visual effects' : 'Effets visuels'}
+            >
+              {(
+                [
+                  ['auto', lang === 'en' ? 'Auto' : 'Auto'],
+                  ['full', lang === 'en' ? 'Full' : 'Complets'],
+                  ['light', lang === 'en' ? 'Light' : 'Légers'],
+                ] as [EffectsPreference, string][]
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={effectsPreference === value}
+                  className={effectsPreference === value ? 'active' : ''}
+                  onClick={() => onEffectsPreferenceChange(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </section>
           <section className="glass saver-row">
             <div>
               <b>{lang === 'en' ? 'Data saver' : 'Économie de données'}</b>

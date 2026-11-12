@@ -10,4 +10,5 @@ export type Screen =
   | 'profile'
   | 'how'
   | 'states'
+  | 'diagnostic'
   | 'notFound'

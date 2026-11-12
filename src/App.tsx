@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  memo,
   type FormEvent,
 } from 'react'
 import {
@@ -18,7 +19,11 @@ import {
   type ProgressResult,
   type Project,
 } from './lib/api'
-import { useAuth } from './lib/auth'
+import {
+  useAuthActions,
+  useAuthSession,
+  useAuthStats,
+} from './lib/auth'
 import {
   BADGE_FAMILY_META,
   COMMUNITY_META,
@@ -45,6 +50,12 @@ import { normalizeSearchText, queryTokens, searchProjects, splitHighlight, findC
 import { GuestBanner } from './components/GuestBanner'
 import { ShareButton } from './components/ShareButton'
 import { buildHash, parseHash, type Route } from './lib/router'
+import {
+  applyEffects,
+  readEffectsPreference,
+  writeEffectsPreference,
+  type EffectsPreference,
+} from './lib/effects'
 import { shareUrlFor } from './lib/share'
 import {
   clearRecentSearches,
@@ -109,6 +120,11 @@ const HowItWorks = lazy(() =>
     default: module.HowItWorks,
   })),
 )
+const Diagnostic = lazy(() =>
+  import('./screens/DiagnosticScreen').then((module) => ({
+    default: module.Diagnostic,
+  })),
+)
 
 const DATA_SAVER_KEY = 'bondev-data-saver'
 const TUTORIAL_KEY_PREFIX = 'bondev-tutorial'
@@ -126,6 +142,7 @@ const SCREEN_TITLES: Record<Screen, { fr: string; en: string }> = {
   profile: { fr: 'Profil', en: 'Profile' },
   how: { fr: 'Règles', en: 'Rules' },
   states: { fr: 'États', en: 'States' },
+  diagnostic: { fr: 'Diagnostic', en: 'Diagnostics' },
   notFound: { fr: 'Page introuvable', en: 'Page not found' },
 }
 
@@ -142,6 +159,7 @@ function screenForRoute(route: Route): Screen {
     case 'how':
     case 'login':
     case 'states':
+    case 'diagnostic':
     case 'notFound':
       return route.name
   }
@@ -456,7 +474,8 @@ function saveProjectCache(projects: Project[], savedAt: number): void {
 
 
 function PointsCard() {
-  const { stats, statsLoading, statsError, refreshStats } = useAuth()
+  const { stats, statsLoading, statsError } = useAuthStats()
+  const { refreshStats } = useAuthActions()
   const lang = useLang()
   const totalEarned = stats?.total_earned ?? 0
   const progress = levelFor(totalEarned).percent
@@ -837,7 +856,7 @@ function NotFound({ go }: { go: (screen: Screen) => void }) {
   )
 }
 
-function ProjectCard({
+function ProjectCardBase({
   project,
   compact = false,
   open,
@@ -938,6 +957,20 @@ function ProjectCard({
   )
 }
 
+/**
+ * Les cartes sont mémorisées : changer un filtre ou afficher 20 résultats de
+ * plus ne re-rend pas les cartes déjà présentes. La fonction `open` est
+ * recréée à chaque rendu du parent mais capture toujours le même projet.
+ */
+const ProjectCard = memo(
+  ProjectCardBase,
+  (previous, next) =>
+    previous.project === next.project &&
+    previous.compact === next.compact &&
+    previous.why === next.why &&
+    previous.query === next.query,
+)
+
 function ProjectSkeleton({ compact = false }: { compact?: boolean }) {
   return (
     <div
@@ -1015,9 +1048,8 @@ function Login() {
     signInWithGoogle,
     signInWithEmail,
     signInAnonymously,
-    authNotice,
-    setAuthNotice,
-  } = useAuth()
+  } = useAuthActions()
+  const { authNotice, setAuthNotice } = useAuthSession()
   const [emailOpen, setEmailOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState<
@@ -1255,7 +1287,7 @@ function Home({
   onDisableRecent: () => void
   onEnableRecent: () => void
 }) {
-  const { profile } = useAuth()
+  const { profile } = useAuthSession()
   const lang = useLang()
   const [draft, setDraft] = useState('')
   const [searchFocused, setSearchFocused] = useState(false)
@@ -1565,7 +1597,7 @@ function Results({
   savedAt: number | null
   onRetry: () => void
   openProject: (project: Project, from: Screen) => void
-  onSubmitSearch: () => void
+  onSubmitSearch: (value: string) => void
   onPickSuggestion: (value: string) => void
   recentSearches: string[]
   recentDisabled: boolean
@@ -1577,9 +1609,23 @@ function Results({
 }) {
   const lang = useLang()
   const [filters, setFilters] = useState(false)
+  // La saisie vit dans cet écran : taper une requête ne re-rend plus App.
+  const [draft, setDraft] = useState(query)
+  const [visibleCount, setVisibleCount] = useState(20)
+  // Les cartes arrivent par petits lots : le premier écran peint vite, le
+  // reste se complète hors du chemin critique. La page reste de 20 résultats.
+  const [renderedResults, setRenderedResults] = useState(8)
   const [selectedTechnologies, setSelectedTechnologies] = useState<string[]>([])
   const [selectedLicenses, setSelectedLicenses] = useState<string[]>([])
   const [selectedContexts, setSelectedContexts] = useState<string[]>([])
+
+  useEffect(() => {
+    setDraft(query)
+  }, [query])
+
+  useEffect(() => {
+    setVisibleCount(20)
+  }, [draft, selectedTechnologies, selectedLicenses, selectedContexts])
 
   const closeFilters = useCallback(() => {
     setFilters(false)
@@ -1647,8 +1693,8 @@ function Results({
   }, [projects])
 
   const outcome = useMemo(
-    () => searchProjects(projects ?? [], query),
-    [projects, query],
+    () => searchProjects(projects ?? [], draft),
+    [projects, draft],
   )
 
   const visible = useMemo(
@@ -1696,6 +1742,30 @@ function Results({
   }
 
   const count = visible.length
+  const paged = visible.slice(0, visibleCount)
+
+  useEffect(() => {
+    setRenderedResults(Math.min(8, visible.length))
+  }, [
+    draft,
+    selectedContexts,
+    selectedLicenses,
+    selectedTechnologies,
+    visible.length,
+    visibleCount,
+  ])
+
+  useEffect(() => {
+    if (renderedResults >= paged.length) return
+    const timer = window.setTimeout(() => {
+      setRenderedResults((current) =>
+        Math.min(current + 6, paged.length),
+      )
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [paged.length, renderedResults])
+
+  const renderedPage = paged.slice(0, renderedResults)
   const title =
     loading && !projects
       ? lang === 'en'
@@ -1727,7 +1797,7 @@ function Results({
         className="query glass"
         onSubmit={(event) => {
           event.preventDefault()
-          onSubmitSearch()
+          onSubmitSearch(draft)
           submitSearch()
         }}
       >
@@ -1736,8 +1806,11 @@ function Results({
           id="catalogue-search"
           className="query-input"
           type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            setQuery(event.target.value)
+          }}
           placeholder="Décris ton besoin : ex. gérer le stock d’une boutique"
           aria-label={
             lang === 'en'
@@ -1751,10 +1824,13 @@ function Results({
           enterKeyHint="search"
           spellCheck={false}
         />
-        {query && (
+        {draft && (
           <button
             className="query-clear"
-            onClick={() => setQuery('')}
+            onClick={() => {
+              setDraft('')
+              setQuery('')
+            }}
             type="button"
             aria-label={lang === 'en' ? 'Clear search' : 'Effacer la recherche'}
           >
@@ -1773,9 +1849,12 @@ function Results({
         </button>
       </form>
       <SearchSuggestions
-        query={query}
+        query={draft}
         inputId="catalogue-search"
-        onPick={onPickSuggestion}
+        onPick={(value) => {
+          setDraft(value)
+          onPickSuggestion(value)
+        }}
       />
       <RecentSearches
         items={recentSearches}
@@ -1786,7 +1865,7 @@ function Results({
         onDisable={onDisableRecent}
         onEnable={onEnableRecent}
       />
-      {query.trim() && understood && (
+      {draft.trim() && understood && (
         <section className="glass understood">
           <b>✦ Bondev a compris :</b> {understood}
         </section>
@@ -1839,17 +1918,35 @@ function Results({
           ) : !projects && error ? (
             <CatalogueError message={error} onRetry={onRetry} />
           ) : visible.length > 0 ? (
-            <div className="list results">
-              {visible.map((result) => (
-                <ProjectCard
-                  key={result.project.id}
-                  project={result.project}
-                  why={lang === 'en' ? result.whyEn : result.why}
-                  query={query}
-                  open={() => openProject(result.project, 'results')}
-                />
-              ))}
-            </div>
+            <>
+              <div className="list results">
+                {renderedPage.map((result) => (
+                  <ProjectCard
+                    key={result.project.id}
+                    project={result.project}
+                    why={lang === 'en' ? result.whyEn : result.why}
+                    query={draft}
+                    open={() => openProject(result.project, 'results')}
+                  />
+                ))}
+              </div>
+              {visible.length > paged.length && (
+                <>
+                  <p className="list-more-note">
+                    {lang === 'en'
+                      ? `${paged.length} of ${visible.length} projects shown`
+                      : `${paged.length} projets sur ${visible.length} affichés`}
+                  </p>
+                  <button
+                    className="load-more"
+                    type="button"
+                    onClick={() => setVisibleCount((value) => value + 20)}
+                  >
+                    {lang === 'en' ? 'Show more' : 'Voir plus'}
+                  </button>
+                </>
+              )}
+            </>
           ) : outcome.results.length > 0 && activeFilterCount > 0 ? (
             <section className="glass empty results-empty">
               <StateArt kind="search" />
@@ -1925,7 +2022,7 @@ function ProjectDetail({
   onRetry: () => void
   onUsed: (projectId: string) => void
 }) {
-  const { user, isGuest } = useAuth()
+  const { user, isGuest } = useAuthSession()
   const lang = useLang()
   const [busy, setBusy] = useState(false)
   const [used, setUsed] = useState(false)
@@ -2524,7 +2621,7 @@ function Nav({
   }
   const items: [Screen, string, string][] = [
     ['home', 'home', 'Accueil'],
-    ['help', 'help', 'Entraide'],
+    ['help', 'handshake', 'Entraide'],
     ['add', 'plus', 'Ajouter'],
     ['profile', 'user', 'Profil'],
     ['how', 'book', 'Règles'],
@@ -2625,7 +2722,7 @@ function LoadingScreen() {
   )
 }
 export default function App() {
-  const { session, loading, profileError } = useAuth()
+  const { session, loading, profileError } = useAuthSession()
   const lang = useLang()
   const [screen, setScreen] = useState<Screen>('login')
   const [sheet, setSheet] = useState(false)
@@ -2671,6 +2768,21 @@ export default function App() {
   const [celebrations, setCelebrations] = useState<Celebration[]>([])
   const [tutorial, setTutorial] = useState(false)
   const [dataSaver, setDataSaver] = useState(defaultDataSaver)
+  const [effectsPreference, setEffectsPreference] = useState<EffectsPreference>(
+    () =>
+      readEffectsPreference(
+        typeof localStorage === 'undefined' ? null : localStorage,
+      ),
+  )
+
+  const changeEffectsPreference = useCallback((value: EffectsPreference) => {
+    setEffectsPreference(value)
+    writeEffectsPreference(
+      value,
+      typeof localStorage === 'undefined' ? null : localStorage,
+    )
+    applyEffects(value)
+  }, [])
 
   const userId = session?.user.id
 
@@ -2680,11 +2792,14 @@ export default function App() {
   const [navTick, setNavTick] = useState(0)
   const [showBackToTop, setShowBackToTop] = useState(false)
   const currentScreenRef = useRef<Screen>('login')
-  const currentScreen: Screen = session
-    ? screen === 'login'
-      ? 'home'
-      : screen
-    : 'login'
+  const currentScreen: Screen =
+    screen === 'diagnostic'
+      ? 'diagnostic'
+      : session
+        ? screen === 'login'
+          ? 'home'
+          : screen
+        : 'login'
   currentScreenRef.current = currentScreen
 
   const saveHistoryScroll = useCallback(() => {
@@ -2725,6 +2840,7 @@ export default function App() {
         case 'profile':
         case 'how':
         case 'states':
+        case 'diagnostic':
           return { name: target }
       }
     },
@@ -2843,7 +2959,8 @@ export default function App() {
   )
 
   const changeQuery = useCallback((value: string) => {
-    setQuery(value)
+    // L'URL suit la saisie, mais l'état d'App ne change pas : Results garde
+    // la requête localement, ce qui évite de re-rendre tout l'écran.
     if (currentScreenRef.current !== 'results') return
     const route: Route = { name: 'results', query: value.trim() }
     try {
@@ -2869,13 +2986,18 @@ export default function App() {
     [navigate, rememberSearch],
   )
 
-  const submitResultsSearch = useCallback(() => {
-    changeQuery(query)
-    rememberSearch(query)
-  }, [changeQuery, query, rememberSearch])
+  const submitResultsSearch = useCallback(
+    (value: string) => {
+      setQuery(value)
+      changeQuery(value)
+      rememberSearch(value)
+    },
+    [changeQuery, rememberSearch],
+  )
 
   const pickResultsQuery = useCallback(
     (value: string) => {
+      setQuery(value)
       changeQuery(value)
       rememberSearch(value)
     },
@@ -3405,11 +3527,14 @@ export default function App() {
   const selectedProject =
     projects?.find((project) => project.id === selectedProjectId) ?? null
   const signedIn = Boolean(session)
-  const activeScreen: Screen = signedIn
-    ? screen === 'login'
-      ? 'home'
-      : screen
-    : 'login'
+  const activeScreen: Screen =
+    screen === 'diagnostic'
+      ? 'diagnostic'
+      : signedIn
+        ? screen === 'login'
+          ? 'home'
+          : screen
+        : 'login'
 
   // Feuille « Ajouter » : modale, donc focus piégé pendant l'ouverture et
   // rendu au bouton d'origine à la fermeture. Échap la referme.
@@ -3467,6 +3592,7 @@ export default function App() {
   return (
     <div className="shell">
       <BrandGradientDefs />
+      <div className="bd-backdrop" aria-hidden="true" />
       <a
         className="skip-link"
         href="#contenu"
@@ -3494,7 +3620,11 @@ export default function App() {
             <span>{net === 'offline' ? 'Hors-ligne' : 'En ligne'}</span>
           </div>
         )}
-        {loading ? (
+        {activeScreen === 'diagnostic' ? (
+          <Suspense fallback={<ScreenSkeleton />}>
+            <Diagnostic />
+          </Suspense>
+        ) : loading ? (
           <LoadingScreen />
         ) : !signedIn ? (
           <Login />
@@ -3606,6 +3736,8 @@ export default function App() {
                     onRefreshProgress={() => void loadProgress()}
                     dataSaver={dataSaver}
                     onDataSaverChange={setDataSaver}
+                    effectsPreference={effectsPreference}
+                    onEffectsPreferenceChange={changeEffectsPreference}
                   />
                 )}{' '}
                 {activeScreen === 'how' && (

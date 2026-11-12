@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -51,7 +52,37 @@ type AuthContextValue = {
   refreshStats: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null)
+type AuthSessionValue = Pick<
+  AuthContextValue,
+  | 'session'
+  | 'user'
+  | 'profile'
+  | 'loading'
+  | 'isGuest'
+  | 'authNotice'
+  | 'setAuthNotice'
+  | 'profileError'
+>
+
+type AuthStatsValue = Pick<
+  AuthContextValue,
+  'stats' | 'statsLoading' | 'statsError'
+>
+
+type AuthActionsValue = Pick<
+  AuthContextValue,
+  | 'signInWithGitHub'
+  | 'signInWithGoogle'
+  | 'signInWithEmail'
+  | 'signInAnonymously'
+  | 'signOut'
+  | 'refreshProfile'
+  | 'refreshStats'
+>
+
+const AuthSessionContext = createContext<AuthSessionValue | null>(null)
+const AuthStatsContext = createContext<AuthStatsValue | null>(null)
+const AuthActionsContext = createContext<AuthActionsValue | null>(null)
 
 function metadataObject(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -440,38 +471,89 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [reset])
 
+  const sessionValue = useMemo<AuthSessionValue>(
+    () => ({
+      session,
+      user: session?.user ?? null,
+      profile,
+      loading,
+      isGuest: isGuestUser(session?.user),
+      authNotice,
+      setAuthNotice,
+      profileError,
+    }),
+    [authNotice, loading, profile, profileError, session],
+  )
+
+  const statsValue = useMemo<AuthStatsValue>(
+    () => ({ stats, statsLoading, statsError }),
+    [stats, statsError, statsLoading],
+  )
+
+  const actionsValue = useMemo<AuthActionsValue>(
+    () => ({
+      signInWithGitHub,
+      signInWithGoogle,
+      signInWithEmail,
+      signInAnonymously,
+      signOut,
+      refreshProfile,
+      refreshStats,
+    }),
+    [
+      refreshProfile,
+      refreshStats,
+      signInAnonymously,
+      signInWithEmail,
+      signInWithGitHub,
+      signInWithGoogle,
+      signOut,
+    ],
+  )
+
   return (
-    <AuthContext.Provider
-      value={{
-        session,
-        user: session?.user ?? null,
-        profile,
-        loading,
-        isGuest: isGuestUser(session?.user),
-        authNotice,
-        setAuthNotice,
-        stats,
-        statsLoading,
-        profileError,
-        statsError,
-        signInWithGitHub,
-        signInWithGoogle,
-        signInWithEmail,
-        signInAnonymously,
-        signOut,
-        refreshProfile,
-        refreshStats,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+    <AuthSessionContext.Provider value={sessionValue}>
+      <AuthStatsContext.Provider value={statsValue}>
+        <AuthActionsContext.Provider value={actionsValue}>
+          {children}
+        </AuthActionsContext.Provider>
+      </AuthStatsContext.Provider>
+    </AuthSessionContext.Provider>
   )
 }
 
-export function useAuth(): AuthContextValue {
-  const context = useContext(AuthContext)
+export function useAuthSession(): AuthSessionValue {
+  const context = useContext(AuthSessionContext)
   if (!context) {
-    throw new Error('useAuth doit être utilisé dans AuthProvider.')
+    throw new Error('useAuthSession doit être utilisé dans AuthProvider.')
   }
   return context
+}
+
+export function useAuthStats(): AuthStatsValue {
+  const context = useContext(AuthStatsContext)
+  if (!context) {
+    throw new Error('useAuthStats doit être utilisé dans AuthProvider.')
+  }
+  return context
+}
+
+export function useAuthActions(): AuthActionsValue {
+  const context = useContext(AuthActionsContext)
+  if (!context) {
+    throw new Error('useAuthActions doit être utilisé dans AuthProvider.')
+  }
+  return context
+}
+
+/**
+ * Compatibilité : renvoie les trois tranches d'un coup. Les nouveaux écrans
+ * préfèrent `useAuthSession`, `useAuthStats` ou `useAuthActions` pour ne pas
+ * se re-rendre quand une tranche qu'ils n'utilisent pas change.
+ */
+export function useAuth(): AuthContextValue {
+  const session = useAuthSession()
+  const stats = useAuthStats()
+  const actions = useAuthActions()
+  return { ...session, ...stats, ...actions }
 }

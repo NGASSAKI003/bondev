@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { translate } from '../i18n'
-import { useAuth } from '../lib/auth'
+import { useAuthActions, useAuthSession } from '../lib/auth'
 import {
   GUEST_BANNER_TEXT,
   GUEST_UPGRADE_CONFIRM,
@@ -22,7 +22,8 @@ type GuestUpgradeState = {
  * Les données de l'invité sont perdues, comme annoncé dans la confirmation.
  */
 export function useGuestUpgrade(): GuestUpgradeState {
-  const { signInWithGitHub, signOut, setAuthNotice } = useAuth()
+  const { signInWithGitHub, signOut } = useAuthActions()
+  const { setAuthNotice } = useAuthSession()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,7 +53,7 @@ export function useGuestUpgrade(): GuestUpgradeState {
  * Bannière discrète affichée en haut de l'accueil et du profil pour un invité.
  */
 export function GuestBanner() {
-  const { user, isGuest } = useAuth()
+  const { user, isGuest } = useAuthSession()
   const { upgrade, busy, error } = useGuestUpgrade()
   const [dismissed, setDismissed] = useState(false)
   const userId = user?.id

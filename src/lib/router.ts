@@ -19,6 +19,7 @@ export type Route =
   | { name: 'how' }
   | { name: 'login' }
   | { name: 'states' }
+  | { name: 'diagnostic' }
   | { name: 'notFound'; path: string }
 
 export type RouteName = Route['name']
@@ -43,6 +44,7 @@ const SCREEN_ROUTES: Record<
   how: '/regles',
   login: '/connexion',
   states: '/etats',
+  diagnostic: '/diagnostic',
 }
 
 /**
@@ -94,6 +96,8 @@ export function parseHash(hash: string): Route {
         return { name: 'login' }
       case 'etats':
         return { name: 'states' }
+      case 'diagnostic':
+        return { name: 'diagnostic' }
       default:
         return notFound(path)
     }

@@ -2,7 +2,10 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>Bondev</title>
     <meta
       name="description"
@@ -26,7 +29,7 @@
           root.dataset.theme = theme
           root.style.colorScheme = theme
           var meta = document.querySelector('meta[name="theme-color"]')
-          if (meta) meta.setAttribute('content', theme === 'light' ? '#eef3ff' : '#050816')
+          if (meta) meta.setAttribute('content', theme === 'light' ? '#f7f9ff' : '#050816')
         } catch (error) {
           /* Le thème par défaut reste sombre. */
         }

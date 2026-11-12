@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { memo, useEffect, useState, type FormEvent } from 'react'
 import { useLang, type Lang } from '../i18n'
 import {
   addAnswer,
@@ -17,7 +17,11 @@ import {
   type QuestionTab,
   type QuestionThread,
 } from '../lib/api'
-import { useAuth } from '../lib/auth'
+import {
+  useAuthActions,
+  useAuthSession,
+  useAuthStats,
+} from '../lib/auth'
 import { notifyProgressChanged } from '../lib/events'
 import {
   firstQuestionFormField,
@@ -220,9 +224,66 @@ function UsefulCheck() {
   )
 }
 
+const QuestionCard = memo(function QuestionCard({
+  question,
+  lang,
+  onOpen,
+}: {
+  question: Question
+  lang: Lang
+  onOpen: (id: string) => void
+}) {
+  return (
+    <button
+      className="glass request question-card"
+      type="button"
+      onClick={() => onOpen(question.id)}
+    >
+      <div className="question-card-top">
+        <span className={`status-pill ${question.status}`}>
+          {statusLabel(question.status, lang)}
+        </span>
+        <span className="tier-pill">
+          {tierLabel(question.tier, lang)} · {pointsLabel(question.tier, lang)}
+        </span>
+      </div>
+      <div className="question-card-tags">
+        {question.beginner_ok && (
+          <span className="mentor-tag">
+            {lang === 'en'
+              ? 'Beginners welcome · +1 mentor bonus'
+              : 'Débutant bienvenu · +1 bonus mentor'}
+          </span>
+        )}
+        {question.is_free && (
+          <span className="free-pill">
+            {lang === 'en' ? 'Free question' : 'Question gratuite'}
+          </span>
+        )}
+      </div>
+      <h3>{question.title}</h3>
+      <p>
+        {question.technologies.slice(0, 3).join(' · ') ||
+          (lang === 'en' ? 'No technology specified' : 'Technologie non précisée')}
+      </p>
+      <div className="question-meta">
+        <span>{answerCountLabel(question.answer_count, lang)}</span>
+        {question.status === 'open' && (
+          <span>{formatTimeLeft(question.expires_at, lang)}</span>
+        )}
+        <span>@{question.author.pseudo}</span>
+      </div>
+      <span className="help-link">
+        {lang === 'en' ? 'View question' : 'Voir la question'}{' '}
+        <Icon name="arrow" size={18} />
+      </span>
+    </button>
+  )
+})
+
 export function Help({ go, openQuestion }: { go: (s: Screen) => void; openQuestion: (id: string) => void }) {
   const lang = useLang()
-  const { user } = useAuth()
+  const { user } = useAuthSession()
   const userId = user?.id
   const [tab, setTab] = useState<QuestionTab>('open')
   const [beginnerOnly, setBeginnerOnly] = useState(false)
@@ -231,6 +292,24 @@ export function Help({ go, openQuestion }: { go: (s: Screen) => void; openQuesti
   const [error, setError] = useState<string | null>(null)
   const [technologies, setTechnologies] = useState<string[]>([])
   const [reload, setReload] = useState(0)
+  const [visibleCount, setVisibleCount] = useState(20)
+  // Les cartes se complètent par lots après la première peinture : la liste
+  // garde sa page de 20, sans construire tous les nœuds dans la même tâche.
+  const [renderedQuestions, setRenderedQuestions] = useState(8)
+
+  useEffect(() => {
+    setVisibleCount(20)
+    setRenderedQuestions(Math.min(8, questions?.length ?? 0))
+  }, [tab, beginnerOnly, technology, questions])
+
+  useEffect(() => {
+    const total = Math.min(questions?.length ?? 0, visibleCount)
+    if (renderedQuestions >= total) return
+    const timer = window.setTimeout(() => {
+      setRenderedQuestions((current) => Math.min(current + 6, total))
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [questions?.length, renderedQuestions, visibleCount])
 
   useEffect(() => {
     let active = true
@@ -390,54 +469,36 @@ export function Help({ go, openQuestion }: { go: (s: Screen) => void; openQuesti
             )}
           </section>
         ) : (
-          <section className="list question-list">
-            {questions.map((question) => (
-              <button
-                className="glass request question-card"
-                key={question.id}
-                type="button"
-                onClick={() => openQuestion(question.id)}
-              >
-                <div className="question-card-top">
-                  <span className={`status-pill ${question.status}`}>
-                    {statusLabel(question.status, lang)}
-                  </span>
-                  <span className="tier-pill">
-                    {tierLabel(question.tier, lang)} · {pointsLabel(question.tier, lang)}
-                  </span>
-                </div>
-                <div className="question-card-tags">
-                  {question.beginner_ok && (
-                    <span className="mentor-tag">
-                      {lang === 'en'
-                        ? 'Beginners welcome · +1 mentor bonus'
-                        : 'Débutant bienvenu · +1 bonus mentor'}
-                    </span>
-                  )}
-                  {question.is_free && (
-                    <span className="free-pill">
-                      {lang === 'en' ? 'Free question' : 'Question gratuite'}
-                    </span>
-                  )}
-                </div>
-                <h3>{question.title}</h3>
-                <p>
-                  {question.technologies.slice(0, 3).join(' · ') ||
-                    (lang === 'en' ? 'No technology specified' : 'Technologie non précisée')}
+          <>
+            <section className="list question-list">
+              {questions
+                .slice(0, Math.min(visibleCount, renderedQuestions))
+                .map((question) => (
+                  <QuestionCard
+                    key={question.id}
+                    question={question}
+                    lang={lang}
+                    onOpen={openQuestion}
+                  />
+                ))}
+            </section>
+            {questions.length > visibleCount && (
+              <>
+                <p className="list-more-note">
+                  {lang === 'en'
+                    ? `${visibleCount} of ${questions.length} questions shown`
+                    : `${visibleCount} questions sur ${questions.length} affichées`}
                 </p>
-                <div className="question-meta">
-                  <span>{answerCountLabel(question.answer_count, lang)}</span>
-                  {question.status === 'open' && (
-                    <span>{formatTimeLeft(question.expires_at, lang)}</span>
-                  )}
-                  <span>@{question.author.pseudo}</span>
-                </div>
-                <span className="help-link">
-                  {lang === 'en' ? 'View question' : 'Voir la question'} <Icon name="arrow" size={18} />
-                </span>
-              </button>
-            ))}
-          </section>
+                <button
+                  className="load-more"
+                  type="button"
+                  onClick={() => setVisibleCount((value) => value + 20)}
+                >
+                  {lang === 'en' ? 'Show more' : 'Voir plus'}
+                </button>
+              </>
+            )}
+          </>
         )}
       </div>
     </main>
@@ -453,7 +514,8 @@ export function QuestionThread({
 }) {
   const lang = useLang()
   const online = useOnline()
-  const { user, refreshStats } = useAuth()
+  const { user } = useAuthSession()
+  const { refreshStats } = useAuthActions()
   const [thread, setThread] = useState<QuestionThread | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1119,7 +1181,9 @@ export function Add({
 }) {
   const lang = useLang()
   const online = useOnline()
-  const { user, stats, statsLoading, statsError, refreshStats } = useAuth()
+  const { user } = useAuthSession()
+  const { stats, statsLoading, statsError } = useAuthStats()
+  const { refreshStats } = useAuthActions()
   const userId = user?.id ?? 'anon'
   const draftKey = `${QUESTION_DRAFT_PREFIX}:${userId}`
   const [draft, setDraft] = useState<QuestionDraft>(() => readQuestionDraft(draftKey))

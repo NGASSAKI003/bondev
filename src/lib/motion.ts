@@ -42,6 +42,7 @@ export const SCREEN_DEPTH: Record<Screen, number> = {
   project: 2,
   how: 2,
   states: 2,
+  diagnostic: 0,
   notFound: 0,
 }
 
@@ -115,8 +116,12 @@ export function dataSaverEnabled(): boolean {
 
 /**
  * Porte d'entrée unique du mouvement côté JavaScript : ni le mode Économie de
- * données ni `prefers-reduced-motion` ne doivent lancer une animation.
+ * données, ni le mode léger, ni `prefers-reduced-motion` ne doivent lancer une
+ * animation.
  */
 export function motionEnabled(): boolean {
+  if (typeof document !== 'undefined') {
+    if (document.documentElement.dataset.effects === 'light') return false
+  }
   return !prefersReducedMotion() && !dataSaverEnabled()
 }

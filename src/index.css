@@ -4150,4 +4150,452 @@ html[data-keyboard="open"] .topbar{
   .skip-link,.share-toast{transition:none;animation:none}
 }
 
+/* ======================================================================== */
+/* Couche mobile Android : fond unique, nav opaque, effets adaptatifs,      */
+/* réactivité, page de diagnostic et préférences.                          */
+/* ======================================================================== */
 
+/* ---- 1. Une seule couche de fond, fixe et hors du contenu qui défile --- */
+html[data-theme]{
+  background:var(--bd-bg-deep);
+}
+
+html[data-theme] body{
+  background:var(--bd-bg-deep);
+  overscroll-behavior-y:none;
+}
+
+html[data-theme] .shell{
+  position:relative;
+  isolation:isolate;
+  background:var(--bd-bg-deep);
+}
+
+html[data-theme] .phone{
+  background:transparent !important;
+  box-shadow:none !important;
+}
+
+html[data-theme] .login{
+  background:transparent !important;
+}
+
+.bd-backdrop{
+  position:fixed;
+  z-index:-1;
+  top:0;
+  left:0;
+  right:0;
+  height:100vh;
+  height:100lvh;
+  min-height:100vh;
+  pointer-events:none;
+  background:
+    radial-gradient(42% 34% at 16% 10%,rgba(30,167,255,.13),transparent 72%),
+    radial-gradient(38% 32% at 86% 30%,rgba(123,63,242,.10),transparent 74%),
+    radial-gradient(34% 28% at 56% 92%,rgba(47,107,255,.09),transparent 72%),
+    var(--bd-bg);
+}
+
+.bd-backdrop::before{
+  content:"";
+  position:absolute;
+  inset:-12%;
+  pointer-events:none;
+  background:
+    radial-gradient(38% 30% at 20% 14%,rgba(30,167,255,.12),transparent 70%),
+    radial-gradient(34% 28% at 84% 32%,rgba(123,63,242,.09),transparent 72%),
+    radial-gradient(30% 24% at 52% 92%,rgba(47,107,255,.07),transparent 70%);
+  filter:blur(34px);
+  opacity:.65;
+  animation:bd-halo-drift 36s ease-in-out infinite alternate;
+  will-change:transform;
+}
+
+.bd-backdrop::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.03;
+  background-image:var(--bd-grain);
+  background-size:180px 180px;
+  mix-blend-mode:soft-light;
+}
+
+html[data-theme="light"] .bd-backdrop{
+  background:
+    radial-gradient(46% 36% at 16% 10%,rgba(30,167,255,.13),transparent 72%),
+    radial-gradient(40% 32% at 86% 30%,rgba(123,63,242,.08),transparent 74%),
+    radial-gradient(36% 28% at 56% 92%,rgba(255,164,196,.12),transparent 72%),
+    var(--bd-bg);
+}
+
+html[data-theme="light"] .bd-backdrop::before{
+  opacity:.58;
+}
+
+html[data-theme="light"] .bd-backdrop::after{
+  opacity:.02;
+  mix-blend-mode:multiply;
+}
+
+/* Les anciens halos de .phone ne doivent plus peindre de seconde couche. */
+html[data-theme] .phone::before,
+html[data-theme] .phone::after{
+  content:none !important;
+  display:none !important;
+}
+
+html[data-activity="hidden"] .bd-backdrop::before{
+  animation-play-state:paused;
+}
+
+/* La navigation reprend exactement le ton du bas de la couche, en opaque :
+   aucune couture ne peut apparaître entre le fond et la barre système. */
+html[data-theme] .nav,
+html[data-theme="dark"] .nav{
+  background:var(--bd-bg) !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  border-color:rgba(255,255,255,.08) !important;
+  box-shadow:0 -1px 0 rgba(255,255,255,.04) !important;
+}
+
+html[data-theme="light"] .nav{
+  background:var(--bd-bg) !important;
+  border-color:rgba(24,52,107,.10) !important;
+  box-shadow:0 -1px 0 rgba(24,52,107,.04) !important;
+}
+
+@media(max-width:639px){
+  html[data-theme] .nav{
+    height:calc(82px + env(safe-area-inset-bottom));
+    padding-bottom:max(10px,env(safe-area-inset-bottom));
+  }
+}
+
+/* ---- 2. Préférence d'effets dans le Profil ---------------------------- */
+html[data-theme] .effects-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:16px;
+  margin-top:16px;
+  border-radius:20px;
+}
+
+html[data-theme] .effects-row > div:first-child{
+  flex:1 1 150px;
+  min-width:0;
+}
+
+html[data-theme] .effects-row b{
+  display:block;
+  font-size:14px;
+}
+
+html[data-theme] .effects-row small{
+  display:block;
+  margin-top:4px;
+  color:var(--bd-text-soft);
+  font-size:12px;
+  line-height:1.45;
+}
+
+html[data-theme] .effects-choice{
+  display:inline-flex;
+  flex:none;
+  gap:3px;
+  padding:3px;
+  border-radius:13px;
+  border:1px solid var(--bd-border);
+  background:var(--bd-hover);
+}
+
+html[data-theme] .effects-choice button{
+  min-height:36px;
+  padding:0 11px;
+  border:0;
+  border-radius:10px;
+  background:transparent;
+  color:var(--bd-text-muted);
+  font:inherit;
+  font-size:12px;
+  font-weight:600;
+}
+
+html[data-theme] .effects-choice button.active{
+  background:var(--bd-gradient-brand);
+  color:#fff;
+}
+
+html[data-theme] .effects-choice button:active{
+  transform:scale(.96);
+}
+
+/* ---- 3. Mode léger : fond statique, aucune transparence floutée ------- */
+html[data-effects="light"] .bd-backdrop::before{
+  inset:0;
+  opacity:1;
+  filter:none;
+  animation:none !important;
+  background:radial-gradient(70% 46% at 50% 0%,var(--bd-bg-glow),transparent 78%);
+  will-change:auto;
+}
+
+html[data-effects="light"] .bd-backdrop::after{
+  display:none !important;
+}
+
+html[data-effects="light"] *,
+html[data-effects="light"] *::before,
+html[data-effects="light"] *::after{
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+}
+
+html[data-effects="light"] .glass,
+html[data-effects="light"] .searchbox,
+html[data-effects="light"] .login-actions,
+html[data-effects="light"] .specialties,
+html[data-effects="light"] .filter-panel.open,
+html[data-effects="light"] .add-sheet,
+html[data-effects="light"] .celebration-toast,
+html[data-effects="light"] .tutorial-card{
+  background:var(--bd-surface) !important;
+  border:1px solid var(--bd-border) !important;
+  box-shadow:0 6px 18px rgba(2,4,12,.10) !important;
+}
+
+html[data-theme="light"][data-effects="light"] .glass,
+html[data-theme="light"][data-effects="light"] .searchbox,
+html[data-theme="light"][data-effects="light"] .login-actions,
+html[data-theme="light"][data-effects="light"] .specialties,
+html[data-theme="light"][data-effects="light"] .filter-panel.open,
+html[data-theme="light"][data-effects="light"] .add-sheet,
+html[data-theme="light"][data-effects="light"] .celebration-toast,
+html[data-theme="light"][data-effects="light"] .tutorial-card{
+  box-shadow:0 5px 16px rgba(49,83,143,.08) !important;
+}
+
+html[data-effects="light"] .glass::before,
+html[data-effects="light"] .searchbox::before,
+html[data-effects="light"] .avatar::before,
+html[data-effects="light"] .help-avatar::after{
+  display:none !important;
+}
+
+/* Aucune cascade, aucun glissement d'écran, aucun confetti. */
+html[data-effects="light"] .screen,
+html[data-effects="light"] .list > *,
+html[data-effects="light"] .success,
+html[data-effects="light"] .level i,
+html[data-effects="light"] .stats > i span,
+html[data-effects="light"] .specialties i b,
+html[data-effects="light"] .sheet-backdrop,
+html[data-effects="light"] .add-sheet,
+html[data-effects="light"] .filter-panel.open,
+html[data-effects="light"] .celebration-toast,
+html[data-effects="light"] .tutorial-layer{
+  animation:none !important;
+}
+
+html[data-effects="light"] .confetti-canvas,
+html[data-effects="light"] .points-delta{
+  display:none !important;
+}
+
+html[data-effects="light"] .primary:hover,
+html[data-effects="light"] .secondary:hover,
+html[data-effects="light"] .project:hover,
+html[data-effects="light"] .request:hover,
+html[data-effects="light"] .add-sheet > button:hover{
+  transform:none !important;
+}
+
+@media(hover:hover) and (pointer:fine){
+  html[data-effects="light"] .project:hover,
+  html[data-effects="light"] .request:hover,
+  html[data-effects="light"] .add-sheet>button:hover{
+    transform:none !important;
+    box-shadow:0 5px 16px rgba(2,4,12,.10) !important;
+  }
+}
+
+/* ---- 4. Réactivité : listes longues, appui immédiat, transitions ------ */
+html[data-theme] .list > *{
+  content-visibility:auto;
+  contain-intrinsic-size:auto 96px;
+}
+
+html[data-theme] .list.results > *{
+  contain-intrinsic-size:auto 168px;
+}
+
+html[data-theme] .question-list > *{
+  contain-intrinsic-size:auto 210px;
+}
+
+html[data-theme] .history > div{
+  content-visibility:auto;
+  contain-intrinsic-size:auto 64px;
+}
+
+html[data-theme] :is(.glass,.project,.request,.question-card,.primary,.secondary,.chips button,.theme-toggle,.add-sheet > button){
+  transition-property:transform,opacity !important;
+}
+
+html[data-theme] :is(button,a,[role="button"]):active{
+  transition-duration:0s !important;
+}
+
+html[data-theme] .load-more{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  min-height:52px;
+  margin-top:14px;
+  border:1px solid var(--bd-border);
+  border-radius:16px;
+  background:var(--bd-hover);
+  color:var(--bd-link);
+  font:inherit;
+  font-size:14px;
+  font-weight:600;
+}
+
+html[data-theme] .load-more:active{
+  transform:scale(.985);
+}
+
+html[data-theme] .list-more-note{
+  margin:10px 0 0;
+  text-align:center;
+  color:var(--bd-text-soft);
+  font-size:12px;
+}
+
+/* ---- 5. Page de diagnostic -------------------------------------------- */
+html[data-theme] .diagnostic{
+  min-height:100vh;
+  padding:max(26px,env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom));
+}
+
+html[data-theme] .diagnostic-head h1{
+  margin:0 0 6px;
+  font-size:24px;
+  letter-spacing:-.03em;
+}
+
+html[data-theme] .diagnostic-head p{
+  margin:0 0 20px;
+  color:var(--bd-text-soft);
+  font-size:13px;
+  line-height:1.5;
+}
+
+html[data-theme] .diagnostic-grid{
+  display:grid;
+  gap:14px;
+}
+
+html[data-theme] .diagnostic-card{
+  padding:16px;
+  border-radius:18px;
+  border:1px solid var(--bd-border);
+  background:var(--bd-surface);
+}
+
+html[data-theme] .diagnostic-card h2{
+  margin:0 0 10px;
+  font-size:14px;
+}
+
+html[data-theme] .diagnostic-card dl{
+  display:grid;
+  grid-template-columns:minmax(110px,auto) minmax(0,1fr);
+  gap:7px 12px;
+  margin:0;
+  font-size:12px;
+}
+
+html[data-theme] .diagnostic-card dt{
+  color:var(--bd-text-soft);
+}
+
+html[data-theme] .diagnostic-card dd{
+  margin:0;
+  overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums;
+}
+
+html[data-theme] .diagnostic-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:16px 0;
+}
+
+html[data-theme] .diagnostic-actions button{
+  min-height:46px;
+  padding:0 16px;
+  border:1px solid var(--bd-border);
+  border-radius:14px;
+  background:var(--bd-hover);
+  color:var(--bd-text);
+  font:inherit;
+  font-size:13px;
+  font-weight:600;
+}
+
+html[data-theme] .diagnostic-actions button.primary{
+  border:0;
+  background:var(--bd-gradient-brand);
+  color:#fff;
+}
+
+html[data-theme] .diagnostic-status{
+  margin:0 0 12px;
+  color:var(--bd-text-soft);
+  font-size:12px;
+}
+
+html[data-theme] .diagnostic-report{
+  width:100%;
+  min-height:180px;
+  margin-top:14px;
+  padding:14px;
+  border:1px solid var(--bd-border);
+  border-radius:14px;
+  background:var(--bd-bg-deep);
+  color:var(--bd-text);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:11px;
+  line-height:1.5;
+  resize:vertical;
+}
+
+html[data-theme] .safe-probe{
+  position:fixed;
+  inset:0;
+  visibility:hidden;
+  pointer-events:none;
+  padding:
+    env(safe-area-inset-top)
+    env(safe-area-inset-right)
+    env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+/* ---- 6. Repli sans lvh (anciens navigateurs Android) ------------------ */
+@supports not (height:100lvh){
+  .bd-backdrop{
+    height:100vh;
+    min-height:100vh;
+    position:fixed;
+  }
+}

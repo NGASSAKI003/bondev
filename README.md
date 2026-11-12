@@ -219,10 +219,10 @@ Tailles du build de production (gzip) :
 
 | Élément | Avant | Après |
 |---|---|---|
-| Entrée principale | 174,58 kB | 113,27 kB |
+| Entrée principale | 174,58 kB | 117,66 kB |
 | Supabase | inclus | 55,16 kB (chunk séparé) |
-| CSS | 17,90 kB | 30,23 kB |
-| Écrans lazy | inclus | 3,05 à 8,81 kB chacun |
+| CSS | 17,90 kB | 33,52 kB |
+| Écrans lazy | inclus | 3,07 à 9,34 kB chacun |
 
 ## Design system
 
@@ -247,7 +247,7 @@ La refonte visuelle est centralisée **en fin de `src/index.css`**, après les r
 ### Navigation
 
 - Barre basse sur mobile, barre latérale sur tablette et ordinateur.
-- L'icône active est **remplie en dégradé** (`FILLED_ICONS` + `url(#brand-gradient)`), l'icône inactive reste en trait fin gris. Les boutons de navigation n'ont plus de conteneur visuel : l'icône est rendue directement dans le bouton.
+- L'icône active est **remplie en dégradé** (`FILLED_ICONS` + `url(#brand-gradient)`), l'icône inactive reste en **trait dégradé**. Les boutons de navigation n'ont plus de conteneur visuel : l'icône est rendue directement dans le bouton.
 - L'onglet actif est marqué immédiatement, dans la même image que le nouvel écran (aucun indicateur séparé) ; son icône garde la grille de 22 px et son libellé est en dégradé.
 - Sur mobile, les cinq SVG mesurent 22 × 22 px et partagent le même axe : tous les libellés restent sur la même ligne de base.
 - Le bouton « + » utilise la même icône de 22 px et le même axe que les autres entrées ; l'ancien cercle de 44 × 44 px est abandonné pour ne pas casser l'alignement.
@@ -265,13 +265,13 @@ La refonte visuelle est centralisée **en fin de `src/index.css`**, après les r
 La couche de mouvement vit dans `src/lib/motion.ts` (règles pures), `src/components/motion.tsx` (compteurs, barres, confettis), `src/lib/viewTransition.ts` (transitions d'écran) et `src/lib/haptics.ts` (vibration). Elle n'ajoute aucune dépendance et ne change ni le contenu ni la logique métier. Ses règles sont testées dans `src/lib/motion.test.ts` (courbe du compteur, plafond de cascade, sens des transitions).
 
 - **Principes** : toutes les animations de déplacement et de taille passent par `transform` et `opacity` ; les transitions restantes de couleur, bordure ou ombre accompagnent des changements d'état (survol, focus, actif) et ne servent jamais de mouvement. Aucun `will-change` permanent, aucune animation de `backdrop-filter`. La coche « Utile ✓ » est la seule exception CSS de dessin (`stroke-dashoffset`) ; les confettis utilisent un canvas dédié, limité à 40 particules.
-- **Écrans** : `document.startViewTransition` quand il existe, avec un glissement directionnel de 240 ms ; repli fondu + glissement de 200 ms sinon. L'onglet actif est peint dans la même image que le nouvel écran (`flushSync`), et chaque écran retrouve sa position de défilement.
+- **Écrans** : `document.startViewTransition` quand il existe, avec un glissement directionnel de 240 ms ; repli fondu + glissement de 200 ms sinon. En mode complet, l'onglet actif est peint dans la même image que le nouvel écran (`flushSync`). En mode léger, `startTransition` découpe le rendu des longues listes sans bloquer le clic. Chaque écran retrouve sa position de défilement.
 - **Listes** : cascade de 40 ms par élément, plafonnée à 10 éléments et rejouée une seule fois par affichage. Les squelettes utilisent un shimmer aux couleurs de la marque, sans saut de mise en page.
 - **Points et progression** : compteur de 600 ms ralenti en fin de course, puce `+3` / `−1`, barres remplies par `scaleX` avec un ressort de 720 ms. Les confettis maison sont limités à 40 particules et s'arrêtent après 1,5 s ; le niveau reçoit une carte avec emblème.
 - **Micro-interactions** : soulèvement et inclinaison de 1,2° sur pointeur fin, retour d'appui sur les cartes cliquables, feuilles et panneau de filtres avec ressort, toasts empilés, fondu croisé des onglets de l'Entraide, ombre d'en-tête au défilement et bouton « Remonter ».
 - **Validation** : coche « Utile ✓ » dessinée en `stroke-dashoffset`, vibration `navigator.vibrate(10)` sur validation et célébration. L'interrupteur **Retour haptique** du Profil est actif par défaut et se coupe avec l'Économie de données.
-- **Désactivation** : `prefers-reduced-motion: reduce` et l'Économie de données coupent les View Transitions, les confettis, les squelettes animés et ramènent les durées à environ 0 ms. L'Économie de données coupe aussi l'haptique.
-- **Mesures** : Lighthouse mobile 93 avant, 95 après sur la page publique (FCP 2,1 s, LCP 2,5–2,6 s, TBT 80 ms, CLS 0). L'audit de l'accueil connecté, qui charge les données Supabase, varie de 81 à 88 selon la charge de la machine. À 4× CPU sur 390 × 844, le défilement, l'ouverture de la feuille, le focus, les onglets et les barres restent autour de 16,7 ms ; les seuls dépassements (50–283 ms) coïncident avec le rendu d'un nouvel écran ou d'une View Transition, et existent aussi avec l'Économie de données activée, donc sans animation.
+- **Désactivation** : `prefers-reduced-motion: reduce` et l'Économie de données coupent les View Transitions, les confettis, les squelettes animés et ramènent les durées à environ 0 ms. L'Économie de données coupe aussi l'haptique. Le mode d'effets **Léger** (auto ou manuel) va plus loin : fond statique, surfaces unies, aucun flou, aucune View Transition, cascade, inclinaison ni confetti ; les compteurs et les contenus restent visibles.
+- **Mesures** : voir [Téléphone réel et effets adaptatifs](#téléphone-réel-et-effets-adaptatifs) pour le protocole 6× CPU / Fast 3G et les tableaux avant/après. Repère public : Lighthouse mobile 94 → 94, FCP 2,1 s, LCP 2,6 → 2,8 s, CLS 0 ; l'audit connecté varie avec les données Supabase.
 
 ### Accessibilité et préférences
 
@@ -280,24 +280,24 @@ La couche de mouvement vit dans `src/lib/motion.ts` (règles pures), `src/compon
 - Le mode **Économie de données** coupe le flou, les animations, l'haptique et allège les ombres.
 - Le traducteur observait chaque frappe : il est désormais temporisé à 90 ms pour éviter les repeints en cascade.
 
-Les captures avant/après sont dans `docs/screens/` (non versionnées, 12 fichiers, largeur maximale 1280 px) : accueil, recherche, Entraide et profil, en mobile et ordinateur, thèmes sombre et clair. Les vues desktop ouvrent la barre latérale pour montrer le logo et les libellés ; les vues mobiles gardent la navigation basse. La capture `avant-accueil-mobile-sombre.jpg` montre la bannière invitée anormalement haute et le rideau blanc corrigés ; `profil-mobile-sombre-haptique.jpg` montre l'interrupteur « Retour haptique ».
+Les captures de cette passe sont dans `docs/screens/` (non versionnées, 8 fichiers, viewport 390 px capturé en DPR 2) : `accueil.jpg`, `entraide.jpg`, `regles.jpg`, `profil-reglages.jpg`, `diagnostic.jpg`, `diagnostic-bas.jpg`, `accueil-leger.jpg` et `entraide-leger.jpg`. Elles montrent le fond sans couture, les icônes poignée de main et livre ouvert, le réglage des effets, la page Diagnostic et le mode léger.
 
 ## Direction artistique
 
 La direction artistique pousse l'interface vers un rendu premium, moderne et artistique, sans changer le contenu ni la logique métier, sans dépendance et sans ressource distante au runtime.
 
 - **Typographie** : Montserrat variable auto-hébergée (`public/fonts/montserrat-latin-var.woff2`, 400–700, sous-ensemble latin, `font-display: swap`), préchargée depuis `index.html`. Les titres utilisent une échelle fluide `clamp()`, un interlettrage resserré ; les chiffres sont tabulaires et les grands nombres passent en dégradé.
-- **Ambiance** : trois halos flous animés en 36 s sur le pseudo-élément `::before` isolé de `.phone`, grain SVG à 3,2 %, pause quand l'onglet est caché (`data-activity="hidden"`), désactivation avec `prefers-reduced-motion` ou l'Économie de données. Le thème clair reprend les mêmes halos en pastel.
+- **Ambiance** : trois halos flous animés en 36 s sur `.bd-backdrop::before`, couche fixe hors de `.phone` ; grain SVG à 3 %, pause quand l'onglet est caché (`data-activity="hidden"`), désactivation avec `prefers-reduced-motion`, l'Économie de données ou le mode léger. Le thème clair reprend les mêmes halos en pastel.
 - **Matières** : cartes en verre à plusieurs couches, bordure dégradée de 1 px via `mask`, reflet intérieur et élévation cohérente ; monogrammes déterministes pour les projets, emblèmes SVG pour les six niveaux, anneaux d'avatar selon le niveau et illustrations inline pour les états vides, hors-ligne et erreurs.
 - **Icônes** : grille de 24 px, trait 1,75, bouts arrondis, tailles unifiées ; le remplissage est réservé à l'état actif et aux célébrations. Le « + » de la navigation reprend la taille et l'axe des autres icônes.
 - **Lancement** : splash HTML/CSS pur dans `index.html` (logo local pulsé, ligne de progression, styles clair et sombre), fondu déclenché au montage de React. Le manifest reprend le nom, les couleurs et les icônes de la marque.
 - **En-tête et navigation** : l'en-tête n'a plus de fond, de backdrop ni de conteneur ; le logo de la barre latérale est visible dès 640 px et masqué dans la grille mobile à cinq boutons.
 
-Poids CSS : **26,54 kB → 30,23 kB gzip** (+3,69 kB), sous le budget de 10 kB. Les animations restent sur `transform` et `opacity`, avec `prefers-reduced-motion` et Économie de données.
+Poids CSS : **26,54 kB → 30,23 kB gzip** (+3,69 kB) lors de cette passe ; la passe mobile le porte à **33,52 kB gzip**, toujours sous le budget de 10 kB. Les animations restent sur `transform` et `opacity`, avec `prefers-reduced-motion`, Économie de données et mode d'effets léger.
 
 Fichiers modifiés : `index.html`, `src/main.tsx`, `src/index.css`, `src/App.tsx`, `src/components/ui.tsx`, `src/components/motion.tsx`, `src/lib/motion.ts`, `src/lib/viewTransition.ts`, `src/lib/haptics.ts`, `src/lib/motion.test.ts`, `src/screens/ProfileScreen.tsx`, `src/screens/EntraideScreen.tsx`, `public/fonts/montserrat-latin-var.woff2` et `README.md`.
 
-Points non vérifiés : Safari/iOS et appareils physiques, lecteurs d'écran, clavier virtuel réel et zoom texte natif à 200 %. L'audit Lighthouse de l'accueil connecté reste variable (81–88) selon la charge de la machine ; la page publique, elle, mesure 95.
+Points non vérifiés : Safari/iOS et appareils physiques, lecteurs d'écran, clavier virtuel réel et zoom texte natif à 200 %. L'audit Lighthouse de l'accueil connecté reste variable (84–96, médiane 95) selon la charge de la machine ; la page publique, elle, mesure 94.
 
 ## Affichage responsive
 
@@ -328,7 +328,7 @@ Règles appliquées dans `src/index.css` :
 - panneau de filtres mobile en `position: fixed`, largeur `min(360px, 100%)`, défilement interne et au-dessus de la navigation ;
 - en paysage de téléphone, le menu latéral défile verticalement et les cartes tablette passent d'elles-mêmes à une colonne quand le contenu devient étroit.
 
-Les captures avant/après de cette vérification sont dans [`docs/screens/`](docs/screens/) et détaillées dans la section [Design system](#design-system). Elles ne sont pas versionnées.
+Les captures de la passe mobile sont dans [`docs/screens/`](docs/screens/) et détaillées dans [Téléphone réel et effets adaptatifs](#téléphone-réel-et-effets-adaptatifs). Elles ne sont pas versionnées.
 
 > [!NOTE]
 > Les états « retirée » et « expirée » ne sont pas disponibles dans les données de démonstration actuelles : ils ont été simulés dans le DOM pour vérifier leur mise en page, pas rejoués depuis Supabase. Les tests à 200 % ont été faits dans Chromium en agrandissant les polices calculées, pas avec le zoom texte natif de chaque navigateur. Safari/iOS, le clavier virtuel réel et les lecteurs d'écran n'ont pas été testés sur appareil physique. Un placeholder de champ de recherche sur une seule ligne reste tronqué nativement à 320 px ; le libellé complet reste disponible dans l'attribut `placeholder`.
@@ -341,12 +341,189 @@ npx tsc --noEmit
 npm run build
 ```
 
+## Téléphone réel et effets adaptatifs
+
+### La bande sombre : cause exacte et correction
+
+Sur Android, la barre d'adresse de Chrome se rétracte au défilement et le clavier virtuel réduit la zone visible. Avant, trois couches se disputaient le fond : `html` et `body` en `#02040c`, `.shell` avec un dégradé radial, et `.phone` avec son propre `radial-gradient(...), #050816`. Le contenu défilait dans `.screen` en `min-height: 100vh`, pas en `100lvh`. Dès que la zone visible grandissait, la partie découverte affichait le fond de `html`/`body`, plus sombre : c'était la bande. La navigation, translucide (`color-mix(... 88%, transparent)`) avec `backdrop-filter: blur(22px)`, échantillonnait cette bande et accentuait la couture ; l'en-tête collant des Règles ajoutait une seconde couche floutée au même endroit. Enfin, `theme-color` valait `#050816` alors que le fond de page valait `#02040c`.
+
+La correction tient en une seule couche : `.bd-backdrop` est un `div` fixe, hors de `.phone`, en `position: fixed; inset: 0; height: 100lvh`, avec les halos et le grain. `html` et `body` reprennent `--bd-bg-deep`, `.phone` devient transparent, ses anciens `::before`/`::after` sont désactivés. La navigation est opaque, exactement `var(--bd-bg)`, sans `backdrop-filter`. `theme-color` est mis à jour dans le même rendu que le thème (`#050816` en sombre, `#f7f9ff` en clair). Comme la couche est fixe et couvre la grande viewport, la barre rétractée, le clavier, le rebond et le passage sombre/clair ne peuvent plus découvrir un autre fond.
+
+### Décision des effets
+
+`src/lib/effects.ts` contient la règle pure, testée dans `src/lib/effects.test.ts`. L'ordre est strict :
+
+1. `Complets` force le mode complet, `Légers` force le mode léger.
+2. En `Auto`, `saveData`, `deviceMemory <= 4`, `hardwareConcurrency <= 4` ou une médiane de frame supérieure à 24 ms passent en léger.
+3. Sinon, complet.
+
+La préférence est mémorisée dans `localStorage` sous `bondev-effects` et appliquée avant React dans `src/main.tsx`. Sur un appareil qui semble puissant, une sonde de 2 s démarre 320 ms après le chargement, uniquement si l'onglet est visible ; elle ignore les deux premières frames et bascule en léger si la médiane dépasse 24 ms. Le Profil expose **Effets visuels : Auto / Complets / Légers** avec l'état effectif.
+
+En léger : fond statique (plus de dérive ni de grain), aucun `backdrop-filter`, surfaces unies, pas de View Transition, pas de cascade, pas d'inclinaison, pas de confettis, ombres simplifiées. Les compteurs de points restent visibles, les icônes, les dégradés de marque, les cibles de 44 px et tous les contenus restent identiques. En complet, rien n'est retiré : halos, verre, View Transitions et micro-interactions restent en place.
+
+### Réactivité
+
+- `AuthSession`, `AuthStats` et `AuthActions` sont trois contextes distincts : une mise à jour de points ne re-rend plus les écrans qui n'utilisent que la session.
+- `ProjectCard` et `QuestionCard` sont mémoïsés, les clés sont stables, et la saisie de recherche des Résultats vit dans l'écran au lieu de App.
+- Résultats et Entraide affichent 20 éléments par page, puis **Voir plus**. La première peinture monte 8 cartes, les suivantes arrivent par 6 toutes les 120 ms.
+- `content-visibility: auto` et `contain-intrinsic-size` évitent de mettre en page les cartes hors écran (96 px générique, 168 px pour les résultats, 210 px pour les questions, 64 px pour l'historique).
+- Les écouteurs de défilement sont passifs et coalescés par `requestAnimationFrame` ; aucune lecture de mise en page répétée dans le handler. `touch-action: manipulation`, `:active` immédiat et transitions limitées à `transform`/`opacity`.
+- En mode léger, `navigateWithMotion` utilise `startTransition` : le rendu d'une longue liste est découpé au lieu de bloquer l'événement. En mode complet, `flushSync` reste nécessaire pour peindre l'onglet actif et le nouvel écran dans la même image.
+- La recherche normalise une fois les mots-clés et met en cache les champs normalisés de chaque projet dans une `WeakMap` ; les résultats ne changent pas.
+
+### Mesures à 6× CPU et Fast 3G
+
+Protocole : Chrome 157, viewport 390 × 844, DPR 2,625, 6× CPU, réseau Fast 3G (150 ms, environ 1,7 Mbit/s descendant et 768 kbit/s montant), 3 passages après un passage à chaud, médiane. « Blocage » = plus longue tâche longue démarrée après le clic, collectée 550 ms après les deux `requestAnimationFrame` qui suivent l'écran cible. « Stabilisation » = clic → cible DOM → 2 rAF. L'après est mesuré en **mode léger**, celui qu'un téléphone milieu de gamme reçoit en Auto.
+
+| Écran | Avant : stabilisation | Avant : blocage médian / max | Après : stabilisation | Après : blocage médian / max |
+|---|---:|---:|---:|---:|
+| Accueil | 403 ms | 74 / 89 ms | 318 ms | 80 / 92 ms |
+| Résultats | 1 072 ms | 138 / 181 ms | 939 ms | 0 / 0 ms |
+| Fiche projet | 496 ms | 0 / 53 ms | 300 ms | 0 / 0 ms |
+| Entraide | 454 ms | 68 / 98 ms | 351 ms | 0 / 85 ms |
+| Fil de question | 1 224 ms | 0 / 0 ms | 1 100 ms | 0 / 0 ms |
+| Profil | 395 ms | 78 / 105 ms | 339 ms | 59 / 77 ms |
+
+Les six changements d'écran après sont sous **100 ms de blocage** (maximum 92 ms à l'accueil). Avant, Résultats (181 ms) et Profil (105 ms) dépassaient la limite. La stabilisation baisse de 10 à 40 % sur cinq écrans ; le fil de question reste dominé par le chargement réseau des réponses.
+
+Le mode complet a aussi été mesuré avec le même protocole : Accueil 354 ms (69 / 76 ms), Résultats 1 205 ms (238 / 255 ms), Fiche projet 497 ms (0 / 0 ms), Entraide 500 ms (76 / 105 ms), Fil 1 385 ms (52 / 52 ms), Profil 383 ms (60 / 64 ms). Il conserve la View Transition synchronisée : à 6× CPU, le rendu des 8 premières cartes de Résultats reste une tâche longue de 255 ms, soit environ 42 ms sur un appareil haut de gamme non bridé. Ce chemin n'est pas celui des appareils modestes, qui passent en léger avant React.
+
+### Lighthouse mobile
+
+**Écran de connexion** (page publique, un passage) :
+
+| Audit | Avant | Après |
+|---|---:|---:|
+| Performance | 94 | 94 |
+| Accessibilité | 98 | 98 |
+| Best practices | 100 | 100 |
+| SEO | 92 | 92 |
+| FCP | 2,1 s | 2,1 s |
+| LCP | 2,6 s | 2,8 s |
+| TBT | 120 ms | 80 ms |
+| CLS | 0 | 0 |
+
+**Écran connecté** (invité sur l'accueil, données Supabase chargées, 3 passages, médiane) :
+
+| Audit | Avant | Après |
+|---|---:|---:|
+| Performance | 88 (86–92) | 95 (84–96) |
+| Accessibilité | 94 | 94 |
+| Best practices | 100 | 100 |
+| SEO | 92 | 92 |
+| FCP | 0,78 s | 0,79 s |
+| LCP | 1,04 s | 1,06 s |
+| TBT | 482 ms | 256 ms |
+| CLS | 0 | 0 |
+| Speed Index | 2,03 s | 1,59 s |
+
+La plage de l'après (84–96) montre la variabilité d'une session invitée Supabase : un passage peut descendre sous la médiane. Le TBT de l'écran connecté inclut le chargement des données et la création de la session ; il reste supérieur à celui de la connexion, mais sa médiane baisse de moitié. Le protocole 6× CPU ci-dessus est plus stable pour juger les changements d'écran.
+
+### Checklist Android
+
+À vérifier sur un vrai téléphone, en Chrome, Samsung Internet et navigateur Xiaomi :
+
+- [ ] Accueil, Résultats, Fiche projet, Entraide, Fil de question, Profil, Règles : aucun liseré sombre en haut ou en bas, barre d'adresse rétractée puis déployée.
+- [ ] Clavier ouvert dans la recherche et dans « Poser une question » : le fond reste continu, l'en-tête reste visible, le champ n'est pas masqué.
+- [ ] Rebond en haut et en bas (overscroll) : aucune couture, aucun flash blanc ou noir.
+- [ ] Thème sombre puis clair : la barre système et la barre d'adresse reprennent `theme-color`, sans transition visible.
+- [ ] Entraide : poignée de main en trait, puis pleine en dégradé quand l'onglet est actif ; aucune bulle de dialogue.
+- [ ] Règles : livre ouvert en trait avec lignes de pages, puis pages pleines en dégradé quand l'onglet est actif.
+- [ ] Profil > Effets visuels : Auto, Complets, Légers ; le choix survit à un rechargement.
+- [ ] En mode léger : fond fixe, pas de flou, pas de confettis ; compteurs de points et contenus toujours lisibles.
+- [ ] Listes : 20 éléments, « Voir plus », les cartes suivantes arrivent sans saut de mise en page.
+- [ ] `#/diagnostic` : dimensions, visualViewport, test 3 s, « Copier le rapport » en français.
+- [ ] Mode avion puis retour réseau : bannière hors-ligne, aucune donnée personnelle dans le diagnostic.
+
+### Vérifications et fichiers modifiés
+
+```bash
+npm test          # 8 fichiers, 100 tests
+npx tsc --noEmit
+npm run build
+```
+
+Fichiers modifiés : `index.html`, `src/main.tsx`, `src/App.tsx`, `src/index.css`, `src/components/ui.tsx`, `src/components/motion.tsx`, `src/components/GuestBanner.tsx`, `src/lib/auth.tsx`, `src/lib/effects.ts`, `src/lib/effects.test.ts`, `src/lib/motion.ts`, `src/lib/router.ts`, `src/lib/search.ts`, `src/lib/viewTransition.ts`, `src/screens/DiagnosticScreen.tsx`, `src/screens/EntraideScreen.tsx`, `src/screens/ProfileScreen.tsx`, `src/screens/ShareProjectScreen.tsx`, `src/screens/types.ts` et `README.md`. Aucune dépendance ajoutée, aucun SQL modifié, aucun changement de contenu métier ou d'API.
+
+Points non vérifiés : Samsung Internet et navigateur Xiaomi sur appareil physique, iOS Safari, clavier virtuel réel, lecteurs d'écran et zoom texte natif à 200 %. Le comportement exact de la barre d'adresse et des gestes système varie selon le constructeur ; il a été reproduit dans Chrome par émulation de la viewport, pas sur chaque surcouche Android.
+
+## Diagnostic
+
+La page `#/diagnostic` est accessible sans session et **non liée dans la navigation**. Elle est chargée à la demande, ajoute `<meta name="robots" content="noindex, nofollow">` pendant son affichage et le retire en quittant. Elle n'appelle ni Supabase ni aucun service réseau et n'affiche aucune donnée personnelle.
+
+Pour l'ouvrir sur un téléphone, remplace le hash de l'URL par `#/diagnostic` (par exemple `https://bondev.example/#/diagnostic`). Sur le preview local : `http://localhost:4173/#/diagnostic`.
+
+Elle affiche :
+
+- dimensions de la fenêtre et de `visualViewport`, offsets et échelle, DPR, `screen.width/height`, safe areas lues par une sonde `env()`, user-agent ;
+- `deviceMemory`, `hardwareConcurrency`, `saveData`, type de connexion, `display-mode`, mode d'effets effectif ;
+- prise en charge de View Transitions, `backdrop-filter` et `content-visibility` ;
+- un test de frames de 3 s lancé automatiquement 350 ms après l'ouverture, avec médiane, p95, nombre de frames > 50 ms et long tasks. Le bouton **Relancer le test** refait la mesure ; l'onglet doit rester visible.
+- le bouton **Copier le rapport** produit un texte français lisible, avec repli `execCommand` si l'API Clipboard est refusée.
+
+## Audit des icônes
+
+Toutes les icônes partagent la grille de 24 px, un trait de 1,75, des bouts et jonctions arrondis. La taille par défaut est 22 px ; les tailles explicites vont de 12 à 34 px. Le dégradé de marque (`#1EA7FF → #2F6BFF → #7B3FF2`) est réservé aux états actifs et aux boutons de recherche. Une icône de navigation inactive est en **trait dégradé** ; l'onglet actif utilise la variante **pleine en dégradé**.
+
+### Navigation
+
+| Icône | Usage | Variantes |
+|---|---|---|
+| `home` | Accueil, onglet de navigation | trait dégradé ; plein dégradé actif |
+| `handshake` | Entraide : navigation, tutoriel, étapes et état vide | trait ; plein dégradé actif ; **aucune bulle de dialogue** |
+| `plus` | Ajouter : navigation, bouton « Poser ma question » | trait ; plein dégradé actif ; signe « + » couleur surface sur le cercle |
+| `user` | Profil, connexion invitée | trait ; plein dégradé actif |
+| `book` | Règles : navigation, en-tête, lien du Profil | trait avec lignes de pages ; plein dégradé actif (pages pleines) |
+
+### Actions et navigation secondaire
+
+| Icône | Usage | Variantes |
+|---|---|---|
+| `search` | Barre de recherche, bouton loupe, état vide | trait ; trait dégradé sur le bouton loupe |
+| `arrow` | Liens « voir tout », chevrons de cartes et d'étapes | trait |
+| `back` | Bouton retour des en-têtes | trait |
+| `chevron` | Réservée à la bibliothèque, aucun usage actuel | trait |
+| `close` | Fermer une feuille, un filtre, un toast | trait |
+| `menu` | Ouvrir le menu latéral | trait |
+| `plus` | Voir « Poser ma question » | trait |
+| `share` | Partager un projet ou une question | trait |
+| `check` | Mission faite, réponse validée, lien copié | trait |
+| `refresh` | Réessayer après une erreur réseau | trait |
+| `external` | Ouvrir une preuve ou un dépôt hors de l'app | trait |
+| `mail` | Connexion par email, confirmation d'envoi | trait |
+| `github` | OAuth GitHub, dépôt d'un projet, étoiles | trait |
+| `sun` / `moon` | Bascule de thème clair / sombre | trait |
+| `ask` | Feuille « Ajouter » : poser une question | trait |
+
+### Contenus, états et progression
+
+| Icône | Usage | Variantes |
+|---|---|---|
+| `clock` | Historique de recherche, dernière activité d'un projet | trait |
+| `wifi` | Hors-ligne, fonctionne hors-ligne, état réseau | trait |
+| `code` | Technologies, spécialités, étapes de projet | trait |
+| `trophy` | Niveaux et progression | trait |
+| `star` | Étoiles GitHub, favoris | trait |
+| `flame` | Série, missions, tutoriel | trait |
+| `target` | Objectif de progression, tutoriel | trait |
+| `lock` | Restriction invité, badge verrouillé | trait |
+| `wallet` | Suggestion « Mobile Money » | trait |
+| `box` | Suggestion « Gestion de stock » | trait |
+| `shield` | Réserve de la bibliothèque, aucun usage actuel | trait |
+| `calendar` | Réserve de la bibliothèque, aucun usage actuel | trait |
+| `sparkles` | Réserve de la bibliothèque, aucun usage actuel | trait |
+| `help` | Ancienne bulle d'Entraide, retirée de la navigation | trait ; une variante pleine existe dans `FILLED_ICONS` |
+
+### Variantes pleines
+
+`FILLED_ICONS` contient `home`, `help`, `user`, `handshake`, `book` et `plus`. Elles sont peintes avec `url(#brand-gradient)`, sans trait. La poignée de main et le livre ouvert proviennent des tracés Material Symbols, ce qui garantit la même silhouette en trait et en plein ; le « + » garde un signe couleur surface, lisible sur le dégradé dans les deux thèmes.
+
 ## Les commandes utiles
 | Commande | Ce qu'elle fait |
 |---|---|
 | `npm install` | Télécharge les outils nécessaires (à faire une fois, ou après une mise à jour) |
 | `npm run dev` | Lance le site en mode développement, il se met à jour tout seul |
-| `npm test` | Lance les tests Vitest (recherche, routeur, Entraide et progression) |
+| `npm test` | Lance les tests Vitest (recherche, routeur, Entraide, progression et effets visuels) |
 | `npm run catalogue:build` | Régénère `supabase/catalogue_depart.sql` depuis `scripts/catalogue/repos.json` |
 | `npm run build` | Prépare la version finale dans le dossier `dist` |
 | `npm run preview` | Teste la version finale en local |
@@ -359,9 +536,9 @@ bondev/
 ├── src/
 │   ├── main.tsx      Démarre l'application et affiche l'écran d'erreur global
 │   ├── App.tsx       Connexion, accueil, résultats, fiche projet, navigation et chargement des écrans
-│   ├── screens/      Écrans lourds chargés à la demande (Entraide, Profil, Règles, Partage)
+│   ├── screens/      Écrans lourds chargés à la demande (Entraide, Profil, Règles, Partage, Diagnostic)
 │   ├── components/   Briques partagées (en-tête, boutons, bannière et restriction invité)
-│   ├── lib/          Accès Supabase, recherche, routeur, partage, Entraide, progression, mode invité, GitHub et dates
+│   ├── lib/          Accès Supabase, recherche, routeur, partage, Entraide, progression, mode invité, GitHub, dates et effets visuels
 │   └── index.css     Tout le style (thème sombre/clair, mobile, tablette, ordinateur)
 ├── scripts/
 │   └── catalogue/    Liste des dépôts et générateur du catalogue de départ

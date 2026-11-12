@@ -1,7 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { LangToggle, useLang } from '../i18n'
 import { toFrenchError, updateMyProfile } from '../lib/api'
-import { useAuth } from '../lib/auth'
+import {
+  useAuthActions,
+  useAuthSession,
+  useAuthStats,
+} from '../lib/auth'
 import { LEVELS } from '../lib/progress'
 import { LivePoints } from './motion'
 
@@ -195,8 +199,15 @@ const FILLED_ICONS: Record<string, ReactNode> = {
       <path d="M4.4 21a7.6 7.6 0 0 1 15.2 0Z" />
     </>
   ),
+  handshake: (
+    <g transform="translate(0 24) scale(0.025)">
+      <path d="M484-120q-17 0-28.5-11.5T444-160q0-7 3-14.5t9-13.5l185-185-29-29-184 185q-6 6-13 9t-15 3q-17 0-28.5-11.5T360-245q0-10 3-16.5t8-11.5l185-185-28-28-185 184q-6 6-13 9t-16 3q-16 0-28-12t-12-28q0-8 3-15t9-13l185-185-29-28-184 185q-5 5-12 8t-17 3q-17 0-28.5-11.5T189-415q0-8 3-15t9-13l223-223 150 151q11 11 26 17.5t30 6.5q32 0 56-22.5t24-57.5q0-14-5-29t-18-28L508-807q17-16 38-24.5t42-8.5q26 0 48 8.5t40 26.5l169 170q18 18 26.5 40t8.5 51q0 20-9 40.5T845-466L512-132q-8 8-14 10t-14 2ZM141-440l-26-26q-17-16-26-38t-9-46q0-26 10-48t25-37l169-170q16-16 38-25.5t43-9.5q27 0 48 7.5t41 27.5l205 205q6 6 9 13t3 15q0 16-12 28t-28 12q-9 0-15-2.5t-13-9.5L423-722 141-440Z" />
+    </g>
+  ),
   book: (
-    <path d="M6.5 2A2.5 2.5 0 0 0 4 4.5v15A2.5 2.5 0 0 0 6.5 22H20V2H6.5Z" />
+    <g transform="translate(0 24) scale(0.025)">
+      <path d="M560-564v-68q33-14 67.5-21t72.5-7q26 0 51 4t49 10v64q-24-9-48.5-13.5T700-600q-38 0-73 9.5T560-564Zm0 220v-68q33-14 67.5-21t72.5-7q26 0 51 4t49 10v64q-24-9-48.5-13.5T700-380q-38 0-73 9t-67 27Zm0-110v-68q33-14 67.5-21t72.5-7q26 0 51 4t49 10v64q-24-9-48.5-13.5T700-490q-38 0-73 9.5T560-454Zm-40 176q44-21 88.5-31.5T700-320q36 0 70.5 6t69.5 18v-396q-33-14-68.5-21t-71.5-7q-47 0-93 12t-87 36v394Zm-40 118q-48-38-104-59t-116-21q-42 0-82.5 11T100-198q-21 11-40.5-1T40-234v-482q0-11 5.5-21T62-752q46-24 96-36t102-12q58 0 113.5 15T480-740q51-30 106.5-45T700-800q52 0 102 12t96 36q11 5 16.5 15t5.5 21v482q0 23-19.5 35t-40.5 1q-37-20-77.5-31T700-240q-60 0-116 21t-104 59ZM280-494Z" />
+    </g>
   ),
   plus: (
     <>
@@ -363,8 +374,9 @@ export function Icon({
     ),
     book: (
       <>
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+        <path d="M11.2 6.2A3.4 3.4 0 0 0 8.1 4H3.6A1.6 1.6 0 0 0 2 5.6v13.2A1.6 1.6 0 0 0 3.6 20.4h4.5c1.2 0 2.3.5 3.1 1.4Z" />
+        <path d="M12.8 6.2A3.4 3.4 0 0 1 15.9 4h4.5A1.6 1.6 0 0 1 22 5.6v13.2a1.6 1.6 0 0 1-1.6 1.6h-4.5c-1.2 0-2.3.5-3.1 1.4Z" />
+        <path d="M5.5 8.5h3M5.5 12h3M15.5 8.5h3M15.5 12h3" opacity=".5" />
       </>
     ),
     target: (
@@ -440,7 +452,7 @@ export function ThemeToggle() {
     localStorage.setItem('bondev-theme', dark ? 'dark' : 'light')
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', dark ? '#050816' : '#eef3ff')
+      ?.setAttribute('content', dark ? '#050816' : '#f7f9ff')
   }, [dark])
   return (
     <button
@@ -491,7 +503,7 @@ export function Header({
   back?: () => void
   logo?: boolean
 }) {
-  const { stats } = useAuth()
+  const { stats } = useAuthStats()
   const lang = useLang()
   const balance = <LivePoints value={stats?.balance ?? null} />
   return (
@@ -548,7 +560,8 @@ export function Header({
 }
 
 export function AccountLangToggle({ compact = false }: { compact?: boolean }) {
-  const { user, refreshProfile } = useAuth()
+  const { user } = useAuthSession()
+  const { refreshProfile } = useAuthActions()
   const [error, setError] = useState<string | null>(null)
   return (
     <div className={`lang-save ${compact ? 'compact' : ''}`}>

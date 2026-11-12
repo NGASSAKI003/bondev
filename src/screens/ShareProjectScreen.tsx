@@ -1,7 +1,7 @@
 import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react'
 import { useLang } from '../i18n'
 import { publishProject, toFrenchError, type PublishedProject } from '../lib/api'
-import { useAuth } from '../lib/auth'
+import { useAuthActions, useAuthSession } from '../lib/auth'
 import { notifyProgressChanged } from '../lib/events'
 import { formatRelativeDate } from '../lib/format'
 import {
@@ -87,7 +87,8 @@ export function ShareProject({
   back: () => void
 }) {
   const lang = useLang()
-  const { refreshStats, isGuest, user } = useAuth()
+  const { refreshStats } = useAuthActions()
+  const { isGuest, user } = useAuthSession()
   const draftKey = `${SHARE_DRAFT_PREFIX}:${user?.id ?? 'anon'}`
   const [restoredDraft] = useState<ShareDraft>(() => readShareDraft(draftKey))
   const [draftRestored, setDraftRestored] = useState(() =>

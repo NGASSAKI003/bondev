@@ -149,6 +149,7 @@ export function Confetti() {
 
   useEffect(() => {
     if (!motionEnabled()) return
+    if (document.documentElement.dataset.effects === 'light') return
     const canvas = canvasRef.current
     if (!canvas) return
     const context = canvas.getContext('2d')

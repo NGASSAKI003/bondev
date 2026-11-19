@@ -8,7 +8,7 @@
 
 const RECENT_KEY = 'bondev-recent-searches-v1'
 const DISABLED_KEY = 'bondev-recent-searches-disabled-v1'
-export const RECENT_SEARCH_LIMIT = 5
+const RECENT_SEARCH_LIMIT = 5
 
 function storage(): Storage | null {
   try {

@@ -6,8 +6,8 @@
  * `^[a-zA-Z0-9_-]{3,30}$` de la table `profiles`.
  */
 
-export const GUEST_PSEUDO_PREFIX = 'invite_'
-export const GUEST_SUFFIX_LENGTH = 6
+const GUEST_PSEUDO_PREFIX = 'invite_'
+const GUEST_SUFFIX_LENGTH = 6
 export const GUEST_DISPLAY_NAME = 'Invité'
 export const GUEST_PSEUDO_PATTERN = /^[a-zA-Z0-9_-]{3,30}$/
 export const GUEST_SIGN_IN_ERROR =
@@ -68,7 +68,7 @@ export function shouldShowGuestBanner({
   return isAnonymous && !dismissed
 }
 
-export function guestBannerKey(userId: string): string {
+function guestBannerKey(userId: string): string {
   return `${BANNER_STORAGE_PREFIX}:${userId}`
 }
 

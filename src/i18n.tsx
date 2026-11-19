@@ -307,7 +307,7 @@ export function startTranslator() {
   obs = new MutationObserver(scheduleApply)
   apply()
 }
-export function setLang(l: Lang) {
+function setLang(l: Lang) {
   lang = l
   try { localStorage.setItem(KEY, l) } catch { /* ignore */ }
   document.documentElement.lang = l

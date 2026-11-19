@@ -21,7 +21,7 @@ export type GithubRepoPreview = {
   lastActivity: string
 }
 
-export class GithubError extends Error {
+class GithubError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'GithubError'

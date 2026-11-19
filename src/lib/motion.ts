@@ -30,7 +30,7 @@ export const MOTION = {
  * Profondeur visuelle de chaque écran. Une cible moins profonde que l'écran
  * courant est un retour ; une cible plus profonde ou de même niveau avance.
  */
-export const SCREEN_DEPTH: Record<Screen, number> = {
+const SCREEN_DEPTH: Record<Screen, number> = {
   login: 0,
   home: 0,
   results: 1,
@@ -99,13 +99,13 @@ export function navigationDirection(
 }
 
 /** Vrai si le navigateur demande moins de mouvement. */
-export function prefersReducedMotion(): boolean {
+function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 /** Vrai si le mode Économie de données coupe le mouvement. */
-export function dataSaverEnabled(): boolean {
+function dataSaverEnabled(): boolean {
   if (typeof document === 'undefined') return false
   if (document.documentElement.dataset.saver === 'on') return true
   const connection = (

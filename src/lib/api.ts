@@ -60,7 +60,7 @@ export type ProgressResult = {
   fromCache: boolean
 }
 
-export type ProjectAuthor = {
+type ProjectAuthor = {
   id: string
   pseudo: string
   display_name: string
@@ -85,7 +85,7 @@ export type Project = {
   author: ProjectAuthor
 }
 
-export type ProjectRow = {
+type ProjectRow = {
   id: string
   author_id: string
   title: string
@@ -143,7 +143,7 @@ export type Question = {
   answer_count: number
 }
 
-export type QuestionRow = {
+type QuestionRow = {
   id: string
   author_id: string
   title: string
@@ -175,7 +175,7 @@ export type Answer = {
   level: string
 }
 
-export type AnswerRow = {
+type AnswerRow = {
   id: string
   question_id: string
   author_id: string
@@ -201,17 +201,17 @@ export type PostQuestionInput = {
   beginnerOk: boolean
 }
 
-export const QUESTION_COLUMNS =
+const QUESTION_COLUMNS =
   'id,author_id,title,body,technologies,tier,github_url,beginner_ok,status,is_free,expires_at,validated_answer_id,created_at,updated_at,author:profiles!questions_author_id_fkey(id,pseudo,display_name,avatar_url),answers(count)'
 
-export const ANSWER_COLUMNS =
+const ANSWER_COLUMNS =
   'id,question_id,author_id,body,proof_url,is_useful,created_at,updated_at,author:profiles!answers_author_id_fkey(id,pseudo,display_name,avatar_url)'
 
 /** Colonnes lues pour le catalogue, avec l’auteur via la clé étrangère. */
-export const PROJECT_COLUMNS =
+const PROJECT_COLUMNS =
   'id,author_id,title,description,repo_url,license,technologies,tags,stars,github_stars,last_activity,created_at,author:profiles!projects_author_id_fkey(id,pseudo,display_name,avatar_url)'
 
-export type PointReason =
+type PointReason =
   | 'signup'
   | 'hold'
   | 'reward'
@@ -472,7 +472,7 @@ function normaliseProjectAuthor(
   }
 }
 
-export function normaliseProject(row: ProjectRow): Project {
+function normaliseProject(row: ProjectRow): Project {
   const authorId = readText(row.author_id)
   const createdAt = readText(row.created_at)
   const stars = Number(row.stars ?? 0)
@@ -604,7 +604,7 @@ type ProgressMemoryCache = {
 let progressMemoryCache: ProgressMemoryCache | null = null
 
 /** À appeler après une action qui peut changer la progression. */
-export function invalidateProgressCache(): void {
+function invalidateProgressCache(): void {
   progressMemoryCache = null
 }
 
@@ -1178,7 +1178,7 @@ function readAnswerCount(value: unknown): number {
   return Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0
 }
 
-export function normaliseQuestion(row: QuestionRow): Question {
+function normaliseQuestion(row: QuestionRow): Question {
   const authorId = readText(row.author_id)
   const tierValue = Number(row.tier)
   const tier: HelpTier = isHelpTier(tierValue) ? tierValue : 1

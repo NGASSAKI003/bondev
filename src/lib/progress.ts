@@ -260,7 +260,7 @@ export function computeStreak(
 export type BadgeTier = 'bronze' | 'silver' | 'gold'
 export type BadgeFamily = 'help' | 'share' | 'useful' | 'streak'
 
-export const BADGE_TIERS: readonly BadgeTier[] = ['bronze', 'silver', 'gold']
+const BADGE_TIERS: readonly BadgeTier[] = ['bronze', 'silver', 'gold']
 
 /** Seuils bronze / argent / or. */
 export const BADGE_THRESHOLDS: Record<
@@ -351,7 +351,7 @@ export type CommunityBadgeProgress = {
   percent: number
 }
 
-export type ProgressBadges = {
+type ProgressBadges = {
   help: TierBadgeProgress
   share: TierBadgeProgress
   useful: TierBadgeProgress
@@ -369,12 +369,12 @@ export type QuestMissionId =
   | 'publish_project'
   | 'mark_useful'
 
-export type QuestMissionProgress = {
+type QuestMissionProgress = {
   id: QuestMissionId
   done: boolean
 }
 
-export type QuestProgress = {
+type QuestProgress = {
   missions: QuestMissionProgress[]
   completed: number
   total: number
@@ -383,7 +383,7 @@ export type QuestProgress = {
 
 export const CHALLENGE_TARGET = 10
 
-export type ChallengeProgress = {
+type ChallengeProgress = {
   resolved: number
   target: number
   achieved: boolean

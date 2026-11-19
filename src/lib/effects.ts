@@ -10,16 +10,16 @@
 export type EffectsPreference = 'auto' | 'full' | 'light'
 export type EffectsMode = 'full' | 'light'
 
-export const EFFECTS_STORAGE_KEY = 'bondev-effects'
+const EFFECTS_STORAGE_KEY = 'bondev-effects'
 
 /** Au-delà de cette durée médiane, l'appareil est considéré comme lent. */
-export const SLOW_FRAME_MS = 24
+const SLOW_FRAME_MS = 24
 
 /** Durée de la sonde de démarrage, en millisecondes. */
 export const FRAME_PROBE_MS = 2000
 
 /** Largeur à partir de laquelle un écran n'est plus considéré comme mobile. */
-export const TOUCH_SAFE_MAX_WIDTH = 820
+const TOUCH_SAFE_MAX_WIDTH = 820
 
 export type EffectsEnvironment = {
   preference: EffectsPreference
@@ -157,7 +157,7 @@ export type RuntimeNavigator = {
   hardwareConcurrency?: number
 }
 
-export function environmentFrom(
+function environmentFrom(
   navigatorLike: RuntimeNavigator | null | undefined,
 ): Pick<EffectsEnvironment, 'saveData' | 'deviceMemory' | 'hardwareConcurrency'> {
   return {
@@ -173,7 +173,7 @@ export type RuntimeViewport = {
   viewportWidth: number | null
 }
 
-export function viewportFromRuntime(): RuntimeViewport {
+function viewportFromRuntime(): RuntimeViewport {
   if (
     typeof window === 'undefined' ||
     typeof window.matchMedia !== 'function'
@@ -190,12 +190,8 @@ export function viewportFromRuntime(): RuntimeViewport {
 let measuredMedianFrameMs: number | null = null
 
 /** Mémorise la sonde de démarrage pour les recalculs de préférence. */
-export function rememberFrameMedian(value: number | null): void {
+function rememberFrameMedian(value: number | null): void {
   measuredMedianFrameMs = value
-}
-
-export function rememberedFrameMedian(): number | null {
-  return measuredMedianFrameMs
 }
 
 /**

@@ -22,7 +22,7 @@ export type Route =
   | { name: 'diagnostic' }
   | { name: 'notFound'; path: string }
 
-export type RouteName = Route['name']
+type RouteName = Route['name']
 
 /** Les identifiants Supabase sont des UUID : tout le reste est une 404. */
 const UUID_PATTERN =

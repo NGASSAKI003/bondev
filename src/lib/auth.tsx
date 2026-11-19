@@ -546,14 +546,3 @@ export function useAuthActions(): AuthActionsValue {
   return context
 }
 
-/**
- * Compatibilité : renvoie les trois tranches d'un coup. Les nouveaux écrans
- * préfèrent `useAuthSession`, `useAuthStats` ou `useAuthActions` pour ne pas
- * se re-rendre quand une tranche qu'ils n'utilisent pas change.
- */
-export function useAuth(): AuthContextValue {
-  const session = useAuthSession()
-  const stats = useAuthStats()
-  const actions = useAuthActions()
-  return { ...session, ...stats, ...actions }
-}

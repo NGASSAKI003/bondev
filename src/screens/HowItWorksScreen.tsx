@@ -13,7 +13,7 @@ export function HowItWorks({ back }: { back: () => void }) {
 
   return (
     <main className="screen how-screen">
-      <Header title={tr('Comment ça marche', 'How it works')} back={back} />
+      <Header title={tr('Règles', 'Rules')} back={back} />
       <section className="how-intro glass">
         <span aria-hidden="true">
           <Icon name="book" size={26} />
@@ -211,8 +211,8 @@ export function HowItWorks({ back }: { back: () => void }) {
         </table>
         <p>
           {tr(
-            'Entraide = réponses validées. Partage = projets publiés. Utilité = « Ça m’a servi » reçus. Série = semaines consécutives. Spécialités : jusqu’à trois technologies, avec le titre « Expert <techno> ».',
-            'Helping = validated answers. Sharing = published projects. Usefulness = “This helped me” received. Streak = consecutive weeks. Specialties: up to three technologies, with the “Expert <technology>” title.',
+            'Entraide = réponses validées. Partage = projets publiés. Utilité = « Ça m’a servi » reçus. Série = semaines consécutives. Spécialités : jusqu’à trois technologies, avec le titre « Expert Python ».',
+            'Helping = validated answers. Sharing = published projects. Usefulness = “This helped me” received. Streak = consecutive weeks. Specialties: up to three technologies, with the “Expert Python” title.',
           )}
         </p>
         <p>

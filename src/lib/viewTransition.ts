@@ -1,6 +1,7 @@
 import { startTransition } from 'react'
 import { flushSync } from 'react-dom'
 import { motionEnabled, type NavigationDirection } from './motion'
+import { viewTransitionsDisabled } from './renderLab'
 
 type TransitionDocument = Document & {
   startViewTransition?: (callback: () => void) => {
@@ -33,7 +34,8 @@ export function navigateWithMotion(
   }
 
   const root = document.documentElement
-  const reduced = !motionEnabled() || direction === 'none'
+  const reduced =
+    !motionEnabled() || direction === 'none' || viewTransitionsDisabled()
   if (reduced) {
     // Sans View Transition ni animation, rien n'oblige à bloquer l'événement :
     // une transition React peut découper le rendu des longues listes.
@@ -85,7 +87,7 @@ export function crossfadeWithMotion(update: () => void): void {
     return
   }
   const root = document.documentElement
-  if (!motionEnabled()) {
+  if (!motionEnabled() || viewTransitionsDisabled()) {
     flushSync(update)
     return
   }

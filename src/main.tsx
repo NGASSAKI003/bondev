@@ -10,6 +10,10 @@ import {
   readEffectsPreference,
   writeEffectsPreference,
 } from './lib/effects'
+import {
+  applyRenderLabState,
+  readRenderLabState,
+} from './lib/renderLab'
 import { supabaseConfigError } from './lib/supabase'
 
 startTranslator()
@@ -39,6 +43,14 @@ function syncRuntimePreferences() {
 }
 
 syncRuntimePreferences()
+
+// Le laboratoire de rendu doit être posé avant le premier écran : ses
+// attributs coupent les familles CSS à risque dès la première peinture.
+applyRenderLabState(
+  readRenderLabState(
+    typeof localStorage === 'undefined' ? null : localStorage,
+  ),
+)
 
 /**
  * Applique le mode d'effets avant React : les signaux matériels (saveData,

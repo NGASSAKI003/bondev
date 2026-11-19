@@ -55,8 +55,12 @@ export function useGuestUpgrade(): GuestUpgradeState {
 export function GuestBanner() {
   const { user, isGuest } = useAuthSession()
   const { upgrade, busy, error } = useGuestUpgrade()
-  const [dismissed, setDismissed] = useState(false)
   const userId = user?.id
+  // Lire l'état dès l'initialisation : sinon la bannière déjà fermée
+  // apparaît une frame au-dessus du contenu et provoque un saut de 10 px.
+  const [dismissed, setDismissed] = useState(() =>
+    userId ? readGuestBannerDismissed(userId) : true,
+  )
 
   useEffect(() => {
     setDismissed(userId ? readGuestBannerDismissed(userId) : true)

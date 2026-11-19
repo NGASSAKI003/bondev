@@ -6,6 +6,15 @@ import {
   summariseFrames,
   type FrameSummary,
 } from '../lib/effects'
+import {
+  RENDER_LAB_ITEMS,
+  applyRenderLabState,
+  defaultRenderLabState,
+  readRenderLabState,
+  renderLabReportLines,
+  writeRenderLabState,
+  type RenderLabState,
+} from '../lib/renderLab'
 
 /**
  * Page de diagnostic non liée dans l'interface.
@@ -43,6 +52,8 @@ type Snapshot = {
   rtt: number | null
   effectsMode: 'full' | 'light'
   effectsPreference: string
+  coarsePointer: boolean
+  viewportWidth: number
   displayMode: string
   viewTransitions: boolean
   backdropFilter: boolean
@@ -131,6 +142,8 @@ function snapshot(): Snapshot {
     effectsMode:
       document.documentElement.dataset.effects === 'light' ? 'light' : 'full',
     effectsPreference: normaliseEffectsPreference(preference),
+    coarsePointer: window.matchMedia?.('(pointer: coarse)').matches ?? false,
+    viewportWidth: window.innerWidth,
     displayMode: displayMode(),
     viewTransitions:
       typeof (document as ExtendedDocument).startViewTransition === 'function',
@@ -158,6 +171,7 @@ function buildReport(
   data: Snapshot,
   frames: FrameSummary | null,
   tasks: LongTaskSummary | null,
+  lab: RenderLabState,
 ): string {
   const lines = [
     'RAPPORT DE DIAGNOSTIC BONDEV',
@@ -180,6 +194,8 @@ function buildReport(
     `- hardwareConcurrency : ${data.hardwareConcurrency === null ? 'non disponible' : data.hardwareConcurrency}`,
     `- saveData : ${data.saveData === null ? 'non disponible' : data.saveData ? 'oui' : 'non'}`,
     `- Connexion : ${data.connectionType ?? 'non disponible'} / downlink ${data.downlink === null ? '—' : `${data.downlink} Mb/s`} / RTT ${data.rtt === null ? '—' : `${data.rtt} ms`}`,
+    `- Pointeur grossier : ${data.coarsePointer ? 'oui' : 'non'}`,
+    `- Largeur de fenêtre : ${data.viewportWidth} px`,
     '',
     'Affichage et effets',
     `- Mode d’effets actif : ${modeLabel(data.effectsMode)}`,
@@ -188,6 +204,9 @@ function buildReport(
     `- View Transitions : ${data.viewTransitions ? 'prise en charge' : 'non prise en charge'}`,
     `- backdrop-filter : ${data.backdropFilter ? 'pris en charge' : 'non pris en charge'}`,
     `- content-visibility : ${data.contentVisibility ? 'prise en charge' : 'non prise en charge'}`,
+    '',
+    'Laboratoire de rendu',
+    ...renderLabReportLines(lab),
     '',
     'Test de frames',
     frames
@@ -284,7 +303,22 @@ export function Diagnostic() {
   const [running, setRunning] = useState(false)
   const [copied, setCopied] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [report, setReport] = useState('')
+  const [lab, setLab] = useState<RenderLabState>(() =>
+    readRenderLabState(
+      typeof localStorage === 'undefined' ? null : localStorage,
+    ),
+  )
   const started = useRef(false)
+
+  // Chaque changement est appliqué immédiatement et mémorisé : le prochain
+  // démarrage repart du même laboratoire avant la première peinture.
+  useEffect(() => {
+    applyRenderLabState(lab)
+    writeRenderLabState(
+      lab,
+      typeof localStorage === 'undefined' ? null : localStorage,
+    )
+  }, [lab])
 
   // La page reste hors index même si elle est ouverte directement.
   useEffect(() => {
@@ -333,7 +367,7 @@ export function Diagnostic() {
   }, [])
 
   const copyReport = async () => {
-    const text = buildReport(data, frames, tasks)
+    const text = buildReport(data, frames, tasks, lab)
     setReport(text)
     try {
       await navigator.clipboard.writeText(text)
@@ -392,6 +426,8 @@ export function Diagnostic() {
       'Connexion',
       `${data.connectionType ?? 'non disponible'} · downlink ${data.downlink ?? '—'} Mb/s · RTT ${data.rtt ?? '—'} ms`,
     ],
+    ['Pointeur grossier', data.coarsePointer ? 'oui' : 'non'],
+    ['Largeur de fenêtre', `${data.viewportWidth} px`],
     ['Mode d’effets actif', modeLabel(data.effectsMode)],
     ['Préférence mémorisée', data.effectsPreference],
     ['display-mode', data.displayMode],
@@ -430,11 +466,48 @@ export function Diagnostic() {
         </button>
       </div>
 
+      <section className="diagnostic-card diagnostic-lab">
+        <h2>Laboratoire de rendu</h2>
+        <p className="diagnostic-status">
+          Chaque interrupteur coupe une famille CSS à risque sur cet appareil.
+          L’état est appliqué immédiatement à <code>&lt;html&gt;</code>, conservé
+          après rechargement et recopié dans le rapport.
+        </p>
+        <div className="lab-list">
+          {RENDER_LAB_ITEMS.map((item) => (
+            <label className="lab-row" key={item.flag}>
+              <span>
+                <b>{item.label}</b>
+                <small>{item.detail}</small>
+              </span>
+              <input
+                type="checkbox"
+                checked={lab[item.flag]}
+                onChange={(event) =>
+                  setLab((current) => ({
+                    ...current,
+                    [item.flag]: event.target.checked,
+                  }))
+                }
+              />
+            </label>
+          ))}
+        </div>
+        <div className="diagnostic-actions">
+          <button
+            type="button"
+            onClick={() => setLab(defaultRenderLabState())}
+          >
+            Tout réactiver
+          </button>
+        </div>
+      </section>
+
       <div className="diagnostic-grid">
         <section className="diagnostic-card">
           <h2>Dimensions et appareil</h2>
           <dl>
-            {rows.slice(0, 11).map(([label, value]) => (
+            {rows.slice(0, 13).map(([label, value]) => (
               <div key={label} style={{ display: 'contents' }}>
                 <dt>{label}</dt>
                 <dd>{value}</dd>
@@ -446,7 +519,7 @@ export function Diagnostic() {
         <section className="diagnostic-card">
           <h2>Affichage et effets</h2>
           <dl>
-            {rows.slice(11).map(([label, value]) => (
+            {rows.slice(13).map(([label, value]) => (
               <div key={label} style={{ display: 'contents' }}>
                 <dt>{label}</dt>
                 <dd>{value}</dd>

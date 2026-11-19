@@ -137,7 +137,14 @@ type Particle = {
   life: number
 }
 
-const CONFETTI_COLORS = ['#1EA7FF', '#2F6BFF', '#7B3FF2', '#FFD479', '#38D996']
+/** Les confettis lisent les tokens de marque : aucune couleur en dur ici. */
+const CONFETTI_TOKENS = [
+  '--bd-brand-1',
+  '--bd-brand-2',
+  '--bd-brand-3',
+  '--bd-warning',
+  '--bd-success',
+]
 
 /**
  * Confettis sobres : 40 particules maximum, canvas maison, aucun appel réseau.
@@ -164,6 +171,11 @@ export function Confetti() {
 
     const originX = width / 2
     const originY = Math.min(height * 0.38, 320)
+    const styles = getComputedStyle(document.documentElement)
+    const colors = CONFETTI_TOKENS.map((token) =>
+      styles.getPropertyValue(token).trim(),
+    ).filter(Boolean)
+    const confettiColors = colors.length > 0 ? colors : ['currentColor']
     const particles: Particle[] = Array.from({ length: 40 }, (_, index) => {
       const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.9
       const speed = 0.22 + Math.random() * 0.34
@@ -175,7 +187,7 @@ export function Confetti() {
         size: 3 + Math.random() * 5,
         rotation: Math.random() * Math.PI,
         spin: (Math.random() - 0.5) * 0.014,
-        color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+        color: confettiColors[index % confettiColors.length],
         shape: index % 3 === 0 ? 'circle' : 'rect',
         life: 1,
       }

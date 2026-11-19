@@ -18,6 +18,9 @@ export const SLOW_FRAME_MS = 24
 /** Durée de la sonde de démarrage, en millisecondes. */
 export const FRAME_PROBE_MS = 2000
 
+/** Largeur à partir de laquelle un écran n'est plus considéré comme mobile. */
+export const TOUCH_SAFE_MAX_WIDTH = 820
+
 export type EffectsEnvironment = {
   preference: EffectsPreference
   saveData: boolean
@@ -25,6 +28,10 @@ export type EffectsEnvironment = {
   hardwareConcurrency: number | null | undefined
   /** Médiane mesurée par la sonde, ou null si elle n'a pas encore tourné. */
   medianFrameMs: number | null | undefined
+  /** Pointeur principal grossier : téléphone ou tablette tactile. */
+  coarsePointer?: boolean
+  /** Largeur de la fenêtre au démarrage, en pixels CSS. */
+  viewportWidth?: number | null
 }
 
 export type FrameSummary = {
@@ -68,12 +75,22 @@ export function writeEffectsPreference(
  * Règle unique du mode d'effets.
  *
  * 1. Un choix manuel gagne toujours.
- * 2. En Auto : Économie de données, mémoire ≤ 4 Go, CPU ≤ 4 cœurs ou sonde
- *    lente (> 24 ms de frame médiane) passent en mode léger.
+ * 2. En Auto : un écran tactile (pointeur grossier) ou une fenêtre de 820 px
+ *    ou moins passe en mode sûr, sans attendre la sonde de performance.
+ * 3. Toujours en Auto : Économie de données, mémoire ≤ 4 Go, CPU ≤ 4 cœurs ou
+ *    sonde lente (> 24 ms de frame médiane) passent aussi en mode léger.
  */
 export function decideEffects(environment: EffectsEnvironment): EffectsMode {
   if (environment.preference === 'light') return 'light'
   if (environment.preference === 'full') return 'full'
+  if (environment.coarsePointer === true) return 'light'
+  if (
+    typeof environment.viewportWidth === 'number' &&
+    Number.isFinite(environment.viewportWidth) &&
+    environment.viewportWidth <= TOUCH_SAFE_MAX_WIDTH
+  ) {
+    return 'light'
+  }
   if (environment.saveData) return 'light'
   if (
     typeof environment.deviceMemory === 'number' &&
@@ -150,6 +167,26 @@ export function environmentFrom(
   }
 }
 
+/** Signaux de forme d'écran, lus une seule fois au démarrage. */
+export type RuntimeViewport = {
+  coarsePointer: boolean
+  viewportWidth: number | null
+}
+
+export function viewportFromRuntime(): RuntimeViewport {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.matchMedia !== 'function'
+  ) {
+    return { coarsePointer: false, viewportWidth: null }
+  }
+  return {
+    coarsePointer: window.matchMedia('(pointer: coarse)').matches,
+    viewportWidth:
+      typeof window.innerWidth === 'number' ? window.innerWidth : null,
+  }
+}
+
 let measuredMedianFrameMs: number | null = null
 
 /** Mémorise la sonde de démarrage pour les recalculs de préférence. */
@@ -170,10 +207,12 @@ export function applyEffects(
   navigatorLike: RuntimeNavigator | null | undefined = typeof navigator === 'undefined'
     ? null
     : navigator,
+  viewport: RuntimeViewport | null | undefined = null,
 ): EffectsMode {
   const mode = decideEffects({
     preference,
     ...environmentFrom(navigatorLike),
+    ...(viewport ?? viewportFromRuntime()),
     medianFrameMs: measuredMedianFrameMs,
   })
   if (typeof document !== 'undefined') {

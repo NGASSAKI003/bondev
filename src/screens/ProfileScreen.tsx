@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useLang } from '../i18n'
 import {
   getMyLedger,
   toFrenchError,
+  updateMyProfile,
   type LedgerEntry,
   type ProgressResult,
 } from '../lib/api'
@@ -288,6 +289,7 @@ export function Profile({
   progressError,
   onRefreshProgress,
   dataSaver,
+  saveData,
   onDataSaverChange,
   effectsPreference,
   onEffectsPreferenceChange,
@@ -298,6 +300,7 @@ export function Profile({
   progressError: string | null
   onRefreshProgress: () => void
   dataSaver: boolean
+  saveData: boolean
   onDataSaverChange: (value: boolean) => void
   effectsPreference: EffectsPreference
   onEffectsPreferenceChange: (value: EffectsPreference) => void
@@ -312,8 +315,18 @@ export function Profile({
   const [signingOut, setSigningOut] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [haptics, setHaptics] = useState(readHapticsEnabled)
+  const [displayNameDraft, setDisplayNameDraft] = useState(
+    profile?.display_name ?? '',
+  )
+  const [displayNameBusy, setDisplayNameBusy] = useState(false)
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null)
+  const [displayNameSaved, setDisplayNameSaved] = useState(false)
   const userId = user?.id
   const hapticsActive = haptics && !dataSaver
+
+  useEffect(() => {
+    setDisplayNameDraft(profile?.display_name ?? '')
+  }, [profile?.display_name])
 
   useEffect(() => {
     if (!userId) {
@@ -341,6 +354,11 @@ export function Profile({
     ? profile.avatar_url
     : ''
   const initials = initialsFor(displayName, pseudo)
+  const trimmedDisplayName = displayNameDraft.trim()
+  const displayNameValid =
+    trimmedDisplayName.length >= 2 && trimmedDisplayName.length <= 40
+  const displayNameChanged =
+    trimmedDisplayName !== (profile?.display_name ?? '').trim()
   const progress = progressResult?.progress ?? null
   const totalEarned = progress?.level.totalEarned ?? stats?.total_earned ?? 0
   const info = progress?.level ?? levelFor(totalEarned)
@@ -374,8 +392,27 @@ export function Profile({
     }
   }
 
+  const handleDisplayNameSave = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault()
+    if (!displayNameValid || !displayNameChanged || displayNameBusy) return
+    setDisplayNameBusy(true)
+    setDisplayNameError(null)
+    setDisplayNameSaved(false)
+    try {
+      await updateMyProfile({ display_name: trimmedDisplayName })
+      await refreshProfile()
+      setDisplayNameSaved(true)
+    } catch (cause) {
+      setDisplayNameError(toFrenchError(cause))
+    } finally {
+      setDisplayNameBusy(false)
+    }
+  }
+
   const families: BadgeFamily[] = ['help', 'share', 'useful', 'streak']
-  const plural = (count: number, one: string, many: string) =>
+  const plural = (count: number | null, one: string, many: string) =>
     count === 1 ? one : many
 
   return (
@@ -409,6 +446,61 @@ export function Profile({
               <p>{pseudo ? `@${pseudo}` : profileError ?? ''}</p>
             </div>
           </section>
+          <form className="glass profile-name-form" onSubmit={handleDisplayNameSave}>
+            <label htmlFor="profile-display-name">
+              {lang === 'en' ? 'Display name' : 'Nom affiché'}
+            </label>
+            <div className="profile-name-row">
+              <input
+                id="profile-display-name"
+                className="text-input"
+                type="text"
+                value={displayNameDraft}
+                onChange={(event) => {
+                  setDisplayNameDraft(event.target.value)
+                  setDisplayNameSaved(false)
+                }}
+                minLength={2}
+                maxLength={40}
+                autoComplete="name"
+                placeholder={pseudo || undefined}
+                aria-describedby="profile-display-name-help"
+              />
+              <button
+                className="secondary"
+                type="submit"
+                disabled={
+                  !displayNameValid || !displayNameChanged || displayNameBusy
+                }
+                aria-busy={displayNameBusy || undefined}
+              >
+                {displayNameBusy
+                  ? lang === 'en'
+                    ? 'Saving…'
+                    : 'Enregistrement…'
+                  : lang === 'en'
+                    ? 'Save'
+                    : 'Enregistrer'}
+              </button>
+            </div>
+            <small id="profile-display-name-help">
+              {lang === 'en'
+                ? '2 to 40 characters. It appears in your greeting and on your contributions.'
+                : '2 à 40 caractères. Il apparaît dans ta salutation et sur tes contributions.'}
+            </small>
+            {displayNameError && (
+              <p className="inline-error" role="alert">
+                {displayNameError}
+              </p>
+            )}
+            {displayNameSaved && (
+              <p className="profile-name-saved" role="status">
+                {lang === 'en'
+                  ? 'Display name saved.'
+                  : 'Nom affiché enregistré.'}
+              </p>
+            )}
+          </form>
           <section className="glass stats">
             <div>
               <b>
@@ -551,8 +643,8 @@ export function Profile({
                 ) : (
                   <p className="progress-hint">
                     {lang === 'en'
-                      ? 'Answer questions in a technology to become an “Expert <technology>”.'
-                      : 'Réponds à des questions d’une technologie pour devenir « Expert <techno> ».'}
+                      ? 'Answer questions in a technology to become an “Expert Python”.'
+                      : 'Réponds à des questions d’une technologie pour devenir « Expert Python ».'}
                   </p>
                 )}
 
@@ -597,7 +689,7 @@ export function Profile({
                     </span>
                   </div>
                   <div>
-                    <b>{progress.totals.members}</b>
+                    <b>{progress.totals.members ?? '—'}</b>
                     <span>
                       {lang === 'en'
                         ? plural(progress.totals.members, 'member', 'members')
@@ -668,9 +760,21 @@ export function Profile({
             <div>
               <b>{lang === 'en' ? 'Data saver' : 'Économie de données'}</b>
               <small>
-                {lang === 'en'
-                  ? 'Turns off animations and blur, and lightens shadows.'
-                  : 'Coupe les animations et le flou, et allège les ombres.'}
+                {saveData
+                  ? dataSaver
+                    ? lang === 'en'
+                      ? 'Turned on automatically by your phone. You can still turn it off here.'
+                      : 'Activée automatiquement par ton téléphone. Tu peux la couper ici.'
+                    : lang === 'en'
+                      ? 'Your phone requests data saving; it is currently off here.'
+                      : 'Ton téléphone demande l’économie de données ; elle est coupée ici pour l’instant.'
+                  : dataSaver
+                    ? lang === 'en'
+                      ? 'On: animations and blur are off, shadows are lighter.'
+                      : 'Activée : animations et flou coupés, ombres allégées.'
+                    : lang === 'en'
+                      ? 'Turns off animations and blur, and lightens shadows.'
+                      : 'Coupe les animations et le flou, et allège les ombres.'}
               </small>
             </div>
             <button

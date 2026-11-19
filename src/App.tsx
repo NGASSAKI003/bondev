@@ -36,7 +36,7 @@ import {
   notifyProgressChanged,
   type ProgressEventDetail,
 } from './lib/events'
-import { formatDateTime, formatRelativeDate } from './lib/format'
+import { formatDateTime, formatRelativeDate, greetingNameFor } from './lib/format'
 import { GUEST_USED_EXPLANATION } from './lib/guest'
 import {
   levelFor,
@@ -166,56 +166,9 @@ function screenForRoute(route: Route): Screen {
 }
 
 
-const SEARCH_PLACEHOLDERS: Record<Lang, string[]> = {
-  fr: [
-    'Décris ton besoin : ex. gérer le stock d’une boutique',
-    'Cherche une solution : ex. Mobile Money',
-    'Trouve un projet : ex. fonctionner hors-ligne',
-  ],
-  en: [
-    'Describe your need: e.g. manage a shop’s stock',
-    'Find a solution: e.g. Mobile Money',
-    'Find a project: e.g. work offline',
-  ],
-}
-
-/** Placeholder qui s'écrit puis s'efface, immobile au focus ou si mouvement réduit. */
-function useSearchPlaceholder(lang: Lang, paused: boolean): string {
-  const phrases = SEARCH_PLACEHOLDERS[lang]
-  const [text, setText] = useState(phrases[0])
-
-  useEffect(() => {
-    if (paused) return
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      setText(phrases[0])
-      return
-    }
-    let phrase = 0
-    let char = phrases[0].length
-    let deleting = true
-    let timer = 0
-    const tick = () => {
-      const current = phrases[phrase]
-      if (!deleting && char === current.length) {
-        deleting = true
-        timer = window.setTimeout(tick, 1900)
-        return
-      }
-      if (deleting && char === 0) {
-        deleting = false
-        phrase = (phrase + 1) % phrases.length
-        timer = window.setTimeout(tick, 280)
-        return
-      }
-      char += deleting ? -1 : 1
-      setText(current.slice(0, char))
-      timer = window.setTimeout(tick, deleting ? 26 : 46)
-    }
-    timer = window.setTimeout(tick, 1100)
-    return () => window.clearTimeout(timer)
-  }, [lang, paused])
-
-  return text
+const SEARCH_PLACEHOLDER: Record<Lang, string> = {
+  fr: 'Décris ton besoin',
+  en: 'Describe your need',
 }
 
 const GOOGLE_LOGIN_ENABLED = import.meta.env.VITE_ENABLE_GOOGLE === 'true'
@@ -664,8 +617,11 @@ function ImpactStrip({
   const lang = useLang()
   const number = (value: number) =>
     new Intl.NumberFormat(lang === 'en' ? 'en-GB' : 'fr-FR').format(value)
-  const plural = (count: number | undefined, one: string, many: string) =>
-    count === 1 ? one : many
+  const plural = (
+    count: number | null | undefined,
+    one: string,
+    many: string,
+  ) => (count === 1 ? one : many)
   const items = [
     {
       icon: 'check',
@@ -701,7 +657,7 @@ function ImpactStrip({
           <span aria-hidden="true">
             <Icon name={item.icon} size={17} />
           </span>
-          <b>{item.value === undefined ? '—' : number(item.value)}</b>
+          <b>{item.value == null ? '—' : number(item.value)}</b>
           <small>{item.label}</small>
         </div>
       ))}
@@ -784,6 +740,35 @@ function RecentSearches({
   onEnable: () => void
 }) {
   const lang = useLang()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const closeOnOutside = (event: PointerEvent) => {
+      if (
+        menuRef.current &&
+        event.target instanceof Node &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setMenuOpen(false)
+      }
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (disabled || items.length === 0) setMenuOpen(false)
+  }, [disabled, items.length])
+
   if (disabled) {
     return (
       <p className="recent-search-off">
@@ -821,12 +806,51 @@ function RecentSearches({
           </span>
         ))}
       </div>
-      <button type="button" className="recent-action" onClick={onClear}>
-        {lang === 'en' ? 'Clear' : 'Effacer'}
-      </button>
-      <button type="button" className="recent-action" onClick={onDisable}>
-        {lang === 'en' ? 'Turn off' : 'Désactiver'}
-      </button>
+      <div className="recent-menu" ref={menuRef}>
+        <button
+          type="button"
+          className="recent-menu-trigger"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-controls="recent-searches-menu"
+          aria-label={
+            lang === 'en'
+              ? 'Recent search options'
+              : 'Options des recherches récentes'
+          }
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          ⋯
+        </button>
+        {menuOpen && (
+          <div
+            className="recent-menu-panel"
+            id="recent-searches-menu"
+            role="menu"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false)
+                onClear()
+              }}
+            >
+              {lang === 'en' ? 'Clear' : 'Effacer'}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false)
+                onDisable()
+              }}
+            >
+              {lang === 'en' ? 'Turn off' : 'Désactiver'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -871,28 +895,15 @@ function ProjectCardBase({
 }) {
   const lang = useLang()
   const { label, isExample } = splitProjectTitle(project.title)
-  const technologies = project.technologies.slice(0, 2).join(' · ')
-  const relativeDate = formatRelativeDate(project.last_activity, lang)
-  const license =
-    project.license || (lang === 'en' ? 'No licence' : 'Licence non précisée')
-  const usage =
-    project.stars > 0
-      ? `★ ${project.stars} ${
-          lang === 'en'
-            ? 'useful'
-            : project.stars === 1
-              ? 'utile'
-              : 'utiles'
-        }`
-      : lang === 'en'
-        ? 'Not used on Bondev yet'
-        : 'Pas encore utilisé sur Bondev'
+  const language = project.technologies[0] ?? ''
+  const license = project.license.trim()
   const githubStars =
     project.github_stars > 0
       ? `${formatCompactCount(project.github_stars, lang)} ${
           lang === 'en' ? 'on GitHub' : 'sur GitHub'
         }`
       : ''
+  const hasMeta = Boolean(language || license || githubStars)
 
   return (
     <article className={`glass project ${compact ? 'compact' : ''}`}>
@@ -923,14 +934,10 @@ function ProjectCardBase({
             <HighlightedText text={why} query={query} />
           </p>
         )}
-        {!compact && (
+        {!compact && hasMeta && (
           <div className="meta">
-            {technologies && <span>{technologies}</span>}
-            <span>{license}</span>
-            {relativeDate && <span>{relativeDate}</span>}
-            <span className={project.stars > 0 ? undefined : 'usage-empty'}>
-              {usage}
-            </span>
+            {language && <span>{language}</span>}
+            {license && <span>{license}</span>}
             {githubStars && (
               <span className="github-stars">
                 <Icon name="github" size={12} /> {githubStars}
@@ -1290,21 +1297,28 @@ function Home({
   const { profile } = useAuthSession()
   const lang = useLang()
   const [draft, setDraft] = useState('')
-  const [searchFocused, setSearchFocused] = useState(false)
-  const placeholder = useSearchPlaceholder(lang, searchFocused)
-  const greetingName =
-    profile?.display_name.trim() ||
-    profile?.pseudo ||
-    (lang === 'en' ? 'developer' : 'développeur')
+  const greetingName = greetingNameFor(
+    profile?.display_name,
+    profile?.pseudo,
+    lang,
+  )
   const greetingAvatar = profile?.avatar_url.startsWith('https://')
     ? profile.avatar_url
     : ''
   const recent = projects?.slice(0, 3) ?? []
-  const suggestions = [
-    { label: 'Mobile Money', icon: 'wallet' },
-    { label: 'Gestion de stock', icon: 'box' },
-    { label: 'Fonctionne hors-ligne', icon: 'wifi' },
-  ]
+  const examples =
+    lang === 'en'
+      ? [
+          { label: 'Mobile Money', icon: 'wallet' },
+          { label: 'Stock management', icon: 'box' },
+          { label: 'Works offline', icon: 'wifi' },
+        ]
+      : [
+          { label: 'Mobile Money', icon: 'wallet' },
+          { label: 'Gestion de stock', icon: 'box' },
+          { label: 'Fonctionne hors-ligne', icon: 'wifi' },
+        ]
+  const showSmartHint = recentDisabled || recentSearches.length === 0
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1339,8 +1353,6 @@ function Home({
                 type="search"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
                 onKeyDown={(event) => {
                   // Entrée valide la recherche immédiatement, y compris sur
                   // les navigateurs mobiles où la touche « rechercher » ne
@@ -1350,7 +1362,7 @@ function Home({
                     onSearch(draft.trim())
                   }
                 }}
-                placeholder={placeholder}
+                placeholder={SEARCH_PLACEHOLDER[lang]}
                 aria-label={
                   lang === 'en'
                     ? 'Search the project catalogue'
@@ -1389,19 +1401,24 @@ function Home({
               onDisable={onDisableRecent}
               onEnable={onEnableRecent}
             />
-            <p className="smart">
-              ✦ Recherche intelligente : décris ton besoin avec tes mots
-            </p>
+            {showSmartHint && (
+              <p className="smart">
+                ✦{' '}
+                {lang === 'en'
+                  ? 'Smart search: describe your need.'
+                  : 'Recherche intelligente : décris ton besoin.'}
+              </p>
+            )}
             <div className="chips-wrap">
-              <div className="chips">
-                {suggestions.map((suggestion) => (
+              <div className="chips example-chips">
+                {examples.map((example) => (
                   <button
-                    key={suggestion.label}
-                    onClick={() => onSearch(suggestion.label)}
+                    key={example.label}
+                    onClick={() => onSearch(example.label)}
                     type="button"
                   >
-                    <Icon name={suggestion.icon} size={16} />
-                    {suggestion.label}
+                    <Icon name={example.icon} size={16} />
+                    {example.label}
                   </button>
                 ))}
               </div>
@@ -2185,25 +2202,19 @@ function ProjectDetail({
             </div>
             <div>
               <Icon name="code" size={20} />
-              <b>{project.license || '—'}</b>
+              <b className="license-value">{project.license || '—'}</b>
               <span>Licence</span>
             </div>
           </div>
 
-          <p className="usage-line">
-            {project.stars > 0 ? (
-              <>
-                {lang === 'en' ? 'Used by' : 'Utilisé par'}{' '}
-                <b>
-                  {project.stars} dev{project.stars === 1 ? '' : 's'}
-                </b>
-              </>
-            ) : lang === 'en' ? (
-              'Not used on Bondev yet'
-            ) : (
-              'Pas encore utilisé sur Bondev'
-            )}
-          </p>
+          {project.stars > 0 && (
+            <p className="usage-line">
+              {lang === 'en' ? 'Used by' : 'Utilisé par'}{' '}
+              <b>
+                {project.stars} dev{project.stars === 1 ? '' : 's'}
+              </b>
+            </p>
+          )}
           {project.github_stars > 0 && (
             <p className="github-stars-line">
               <Icon name="github" size={16} />{' '}
@@ -2231,25 +2242,26 @@ function ProjectDetail({
               aria-busy={busy || undefined}
               type="button"
             >
-              <Icon name="check" size={18} />{' '}
+              <Icon name="handshake" size={18} />{' '}
               {busy
                 ? lang === 'en'
                   ? 'Saving…'
                   : 'Enregistrement…'
                 : used
                   ? lang === 'en'
-                    ? 'Already marked ✓'
-                    : 'Déjà marqué ✓'
+                    ? 'Already marked'
+                    : 'Déjà marqué'
                   : lang === 'en'
-                    ? 'This helped me ✓'
-                    : 'Ça m’a servi ✓'}
+                    ? 'This helped me'
+                    : 'Ça m’a servi'}
             </button>
-            <ShareButton
-              url={shareUrlFor({ name: 'project', id: project.id })}
-              title={label}
-              text={project.description || undefined}
-            />
           </div>
+          <ShareButton
+            className="project-share"
+            url={shareUrlFor({ name: 'project', id: project.id })}
+            title={label}
+            text={project.description || undefined}
+          />
 
           {isGuest && guestNotice && (
             <p className="disabled-reason guest-reason" role="status">
@@ -2621,7 +2633,7 @@ function Nav({
   }
   const items: [Screen, string, string][] = [
     ['home', 'home', 'Accueil'],
-    ['help', 'handshake', 'Entraide'],
+    ['help', 'help', 'Entraide'],
     ['add', 'plus', 'Ajouter'],
     ['profile', 'user', 'Profil'],
     ['how', 'book', 'Règles'],
@@ -3181,11 +3193,15 @@ export default function App() {
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
     let frame = 0
     let saveTimer = 0
+    let lastY = window.scrollY
     const apply = () => {
       frame = 0
       const y = window.scrollY
       document.documentElement.dataset.scrolled = y > 8 ? 'true' : 'false'
-      const next = y > 560
+      // Le bouton n'apparaît qu'en remontant, après 600 px parcourus : il ne
+      // surgit donc jamais au milieu d'une lecture vers le bas.
+      const next = y > 600 && y < lastY
+      lastY = y
       setShowBackToTop((value) => (value === next ? value : next))
     }
     const onScroll = () => {
@@ -3735,6 +3751,7 @@ export default function App() {
                     progressError={progressError}
                     onRefreshProgress={() => void loadProgress()}
                     dataSaver={dataSaver}
+                    saveData={navigatorSaveData()}
                     onDataSaverChange={setDataSaver}
                     effectsPreference={effectsPreference}
                     onEffectsPreferenceChange={changeEffectsPreference}

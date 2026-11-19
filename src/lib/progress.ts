@@ -428,7 +428,8 @@ export type ProgressChallengeInput = {
 export type ProgressTotalsInput = {
   resolvedQuestions: number
   projects: number
-  members: number
+  /** `null` quand le compteur n’a pas pu être lu : l’interface affiche « — ». */
+  members: number | null
 }
 
 export type ProgressInput = {
@@ -599,7 +600,10 @@ export function buildProgress(
     totals: {
       resolvedQuestions: Math.max(0, Math.trunc(input.totals.resolvedQuestions)),
       projects: Math.max(0, Math.trunc(input.totals.projects)),
-      members: Math.max(0, Math.trunc(input.totals.members)),
+      members:
+        input.totals.members === null
+          ? null
+          : Math.max(0, Math.trunc(input.totals.members)),
     },
     activeThisWeek: streak.activeThisWeek,
   }

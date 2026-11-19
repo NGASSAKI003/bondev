@@ -679,17 +679,18 @@ function normaliseProgressRaw(value: unknown): ProgressRaw | null {
   if (!Number.isFinite(challenge.resolved)) challenge.resolved = 0
 
   const totalsRow = isRecord(value.totals) ? value.totals : {}
+  const resolvedQuestions = Number(totalsRow.resolvedQuestions)
+  const projectsTotal = Number(totalsRow.projects)
+  const membersRaw = totalsRow.members
+  const members =
+    membersRaw === null || membersRaw === undefined
+      ? null
+      : Number(membersRaw)
   const totals: ProgressTotalsInput = {
-    resolvedQuestions: Number(totalsRow.resolvedQuestions),
-    projects: Number(totalsRow.projects),
-    members: Number(totalsRow.members),
-  }
-  for (const key of [
-    'resolvedQuestions',
-    'projects',
-    'members',
-  ] as const) {
-    if (!Number.isFinite(totals[key])) totals[key] = 0
+    resolvedQuestions: Number.isFinite(resolvedQuestions) ? resolvedQuestions : 0,
+    projects: Number.isFinite(projectsTotal) ? projectsTotal : 0,
+    members:
+      members !== null && Number.isFinite(members) ? members : null,
   }
 
   return {
@@ -796,7 +797,11 @@ async function fetchProgressRaw(userId: string): Promise<ProgressRaw> {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'resolved'),
     client.from('projects').select('id', { count: 'exact', head: true }),
-    client.from('profiles').select('id', { count: 'exact', head: true }),
+    client
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .not('pseudo', 'ilike', 'invite\\_%')
+      .neq('pseudo', 'equipe_bondev'),
   ])
 
   if (statsResult.error) throw statsResult.error
@@ -808,7 +813,9 @@ async function fetchProgressRaw(userId: string): Promise<ProgressRaw> {
   if (challengeResult.error) throw challengeResult.error
   if (resolvedTotalResult.error) throw resolvedTotalResult.error
   if (projectsTotalResult.error) throw projectsTotalResult.error
-  if (membersResult.error) throw membersResult.error
+  // Le compteur de membres est décoratif : un échec ne doit pas casser toute
+  // la progression. On renvoie `null` pour afficher un tiret plutôt qu'un 0.
+
 
   if (!statsResult.data) {
     throw new ApiError(
@@ -873,7 +880,10 @@ async function fetchProgressRaw(userId: string): Promise<ProgressRaw> {
     totals: {
       resolvedQuestions: resolvedTotalResult.count ?? 0,
       projects: projectsTotalResult.count ?? 0,
-      members: membersResult.count ?? 0,
+      members:
+        membersResult.error || typeof membersResult.count !== 'number'
+          ? null
+          : membersResult.count,
     },
     savedAt: Date.now(),
   }
@@ -950,8 +960,10 @@ export async function updateMyProfile(
 
     if (changes.display_name !== undefined) {
       const displayName = changes.display_name.trim()
-      if (displayName.length > 80) {
-        throw new ApiError('Le nom affiché ne doit pas dépasser 80 caractères.')
+      if (displayName.length < 2 || displayName.length > 40) {
+        throw new ApiError(
+          'Le nom affiché doit contenir entre 2 et 40 caractères.',
+        )
       }
       payload.display_name = displayName
     }

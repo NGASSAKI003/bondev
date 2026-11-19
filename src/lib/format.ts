@@ -1,5 +1,33 @@
 import type { Lang } from '../i18n'
 
+/**
+ * Un mot en casse titre : première lettre majuscule, le reste en minuscules.
+ * Les prénoms composés (Jean-Luc) et les apostrophes (O'Brien) restent valides.
+ */
+const TITLE_CASE_WORD = /^\p{Lu}\p{Ll}*(?:['’-]\p{Lu}?\p{Ll}*)*$/u
+
+/**
+ * Prénom affiché dans la salutation : premier mot du nom affiché s'il est en
+ * casse titre et fait 14 caractères ou moins, sinon le pseudo.
+ */
+export function greetingNameFor(
+  displayName: string | null | undefined,
+  pseudo: string | null | undefined,
+  lang: Lang,
+): string {
+  const firstWord = (displayName ?? '').trim().split(/\s+/)[0] ?? ''
+  if (
+    firstWord &&
+    Array.from(firstWord).length <= 14 &&
+    TITLE_CASE_WORD.test(firstWord)
+  ) {
+    return firstWord
+  }
+  const handle = (pseudo ?? '').trim()
+  if (handle) return handle
+  return lang === 'en' ? 'developer' : 'développeur'
+}
+
 /** Date relative courte, par ex. « il y a 3 jours » / « 3 days ago ». */
 export function formatRelativeDate(value: string, lang: Lang): string {
   const date = new Date(value)

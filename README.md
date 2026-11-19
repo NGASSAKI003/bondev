@@ -219,10 +219,10 @@ Tailles du build de production (gzip) :
 
 | Élément | Avant | Après |
 |---|---|---|
-| Entrée principale | 174,58 kB | 117,66 kB |
+| Entrée principale | 174,58 kB | 117,68 kB |
 | Supabase | inclus | 55,16 kB (chunk séparé) |
-| CSS | 17,90 kB | 33,52 kB |
-| Écrans lazy | inclus | 3,07 à 9,34 kB chacun |
+| CSS | 17,90 kB | 35,17 kB |
+| Écrans lazy | inclus | 3,05 à 9,34 kB chacun |
 
 ## Design system
 
@@ -230,7 +230,44 @@ La refonte visuelle est centralisée **en fin de `src/index.css`**, après les r
 
 ### Tokens
 
-- **Thèmes sombre et clair** : `html[data-theme]` définit les fonds, surfaces, bordures, textes, la marque (`#1EA7FF`, `#2F6BFF`, `#7B3FF2`), le succès, l'alerte et le danger. Le thème initial est appliqué **avant la première peinture** par le script inline de `index.html`, avec `<meta name="color-scheme">` et `color-scheme`.
+Les couleurs sont centralisées dans `src/index.css` (`:root` pour le sombre, `html[data-theme="light"]` pour le clair). Le thème initial est appliqué **avant la première peinture** par le script inline de `index.html`, avec `<meta name="color-scheme">` et `color-scheme`.
+
+| Token | Sombre | Clair | Usage |
+| --- | --- | --- | --- |
+| `--bd-bg` | `#050816` | `#f7f9ff` | Fond de l'application, `.phone` |
+| `--bd-bg-deep` | `#02040c` | `#eef3ff` | Fond profond, `body`, `.shell` |
+| `--bd-bg-glow` | `#111936` | `#e4ecff` | Halo statique du fond |
+| `--bd-surface` | `#0c1124` | `#ffffff` | Cartes, feuilles, barre latérale |
+| `--bd-surface-2` | `#111936` | `#f2f6ff` | Surface secondaire, pistes |
+| `--bd-surface-glass` | `rgba(255,255,255,.055)` | `rgba(255,255,255,.88)` | Verre, champs, boutons contour |
+| `--bd-field-bg` | `rgba(255,255,255,.055)` | `#ffffff` | Fond des champs |
+| `--bd-hover` | `rgba(255,255,255,.07)` | `rgba(24,52,107,.055)` | Survol, puces, pistes |
+| `--bd-nav-bg` | `rgba(7,11,26,.94)` | `rgba(247,249,255,.95)` | Barre de navigation |
+| `--bd-border` | `rgba(255,255,255,.10)` | `rgba(24,52,107,.12)` | Filets et bordures fines |
+| `--bd-border-strong` | `rgba(255,255,255,.16)` | `rgba(24,52,107,.20)` | Bordures de champs et de cartes |
+| `--bd-text` | `#f2f6ff` | `#111936` | Texte principal |
+| `--bd-text-muted` | `#a8b3cf` | `#4a5a78` | Texte secondaire |
+| `--bd-text-soft` | `#8490ad` | `#5d6b86` | Texte tertiaire, placeholders |
+| `--bd-nav-inactive` | `#93a0bd` | `#4f5e7a` | Icônes de navigation inactives |
+| `--bd-link` | `#7cc0ff` | `#1557b8` | Liens et actions actives |
+| `--bd-brand-ink` | `#8fd0ff` | `#0b63b8` | Texte sur fond de marque |
+| `--bd-brand-1` | `#1EA7FF` | `#1EA7FF` | Bleu électrique : actif uniquement |
+| `--bd-brand-2` | `#2F6BFF` | `#2F6BFF` | Bleu de marque |
+| `--bd-brand-3` | `#7B3FF2` | `#7B3FF2` | Violet de marque |
+| `--bd-brand-soft` | `rgba(47,107,255,.16)` | `rgba(47,107,255,.10)` | Teinte de marque douce |
+| `--bd-brand-glow` | `rgba(47,107,255,.18)` | `rgba(47,107,255,.08)` | Halo et fonds teintés |
+| `--bd-success` | `#5fe3b0` | `#087a4e` | Succès, progression |
+| `--bd-warning` | `#ffc45c` | `#8a5a00` | Alerte, série |
+| `--bd-danger` | `#ff8fa3` | `#b3123a` | Danger, erreur |
+| `--bd-danger-bg` | `rgba(255,93,122,.12)` | `rgba(179,18,58,.08)` | Fond des messages d'erreur |
+| `--bd-focus` | `rgba(30,167,255,.45)` | `rgba(47,107,255,.38)` | Anneau de focus |
+| `--bd-gradient-brand` | `linear-gradient(110deg,#1EA7FF,#2F6BFF 53%,#7B3FF2)` | idem | Dégradé décoratif de marque |
+| `--bd-gradient-primary` | `linear-gradient(110deg,#0874d1,#2a5fe8 52%,#6a2fd8)` | idem | Dégradé des boutons primaires |
+| `--bd-gradient-text` | `linear-gradient(110deg,#5bc6ff,#7fa4ff 55%,#b99bff)` | `linear-gradient(110deg,#0968c4,#2046c9 55%,#5b2bb8)` | Texte en dégradé |
+| `--bd-gradient-danger` | `linear-gradient(110deg,#b81f45,#e0335f)` | idem | Boutons dangereux |
+
+**Règles d'usage** : le bleu électrique `--bd-brand-1` ne sert qu'aux éléments actifs (onglet actif, lien, focus, progression) ; le texte courant utilise `--bd-text*`. Les variantes alpha de la marque (`#2f6bff0d`, `#2f6bff1f`, etc.) restent des teintes décoratives ponctuelles, jamais des couleurs de texte. Les blancs et noirs en dur sont réservés au texte sur dégradé, aux ombres et aux illustrations (médailles, confettis). Les teintes de statut des médailles, pastilles résolues et célébrations (`#38d996`, `#7ee2b8`, `#16794f`, ambre et rouge) restent littérales : ce sont des accents décoratifs calibrés pour leurs fonds, pas des doublons des tokens de texte. Le bloc `@media(prefers-color-scheme:light)` conserve des valeurs littérales : c'est le repli avant l'exécution du script de thème, il ne peut pas encore lire `data-theme`.
+
 - **Rayons** : `--bd-radius-sm|md|lg|xl|pill` valent 12 / 16 / 22 / 28 / 999 px.
 - **Ombres** : douce, moyenne, halo de marque et danger.
 - **Espacements** : base 4 px, de `--bd-space-1` à `--bd-space-8`.
@@ -249,8 +286,8 @@ La refonte visuelle est centralisée **en fin de `src/index.css`**, après les r
 - Barre basse sur mobile, barre latérale sur tablette et ordinateur.
 - L'icône active est **remplie en dégradé** (`FILLED_ICONS` + `url(#brand-gradient)`), l'icône inactive reste en **trait dégradé**. Les boutons de navigation n'ont plus de conteneur visuel : l'icône est rendue directement dans le bouton.
 - L'onglet actif est marqué immédiatement, dans la même image que le nouvel écran (aucun indicateur séparé) ; son icône garde la grille de 22 px et son libellé est en dégradé.
-- Sur mobile, les cinq SVG mesurent 22 × 22 px et partagent le même axe : tous les libellés restent sur la même ligne de base.
-- Le bouton « + » utilise la même icône de 22 px et le même axe que les autres entrées ; l'ancien cercle de 44 × 44 px est abandonné pour ne pas casser l'alignement.
+- Sur mobile, les cinq entrées occupent le même emplacement de 22 px et partagent le même axe ; tous les libellés restent sur la même ligne de base.
+- Le bouton « + » est aligné sur les autres icônes : cercle de 22 × 22 px, anneau de 1,5 px et symbole de 14 px, sans masque.
 - Les trois états du menu latéral (fermé, survolé, épinglé) conservent le même alignement ; son déploiement est instantané et seuls les libellés animent opacité et translation.
 
 ### Champs et sélections
@@ -265,39 +302,40 @@ La refonte visuelle est centralisée **en fin de `src/index.css`**, après les r
 La couche de mouvement vit dans `src/lib/motion.ts` (règles pures), `src/components/motion.tsx` (compteurs, barres, confettis), `src/lib/viewTransition.ts` (transitions d'écran) et `src/lib/haptics.ts` (vibration). Elle n'ajoute aucune dépendance et ne change ni le contenu ni la logique métier. Ses règles sont testées dans `src/lib/motion.test.ts` (courbe du compteur, plafond de cascade, sens des transitions).
 
 - **Principes** : toutes les animations de déplacement et de taille passent par `transform` et `opacity` ; les transitions restantes de couleur, bordure ou ombre accompagnent des changements d'état (survol, focus, actif) et ne servent jamais de mouvement. Aucun `will-change` permanent, aucune animation de `backdrop-filter`. La coche « Utile ✓ » est la seule exception CSS de dessin (`stroke-dashoffset`) ; les confettis utilisent un canvas dédié, limité à 40 particules.
-- **Écrans** : `document.startViewTransition` quand il existe, avec un glissement directionnel de 240 ms ; repli fondu + glissement de 200 ms sinon. En mode complet, l'onglet actif est peint dans la même image que le nouvel écran (`flushSync`). En mode léger, `startTransition` découpe le rendu des longues listes sans bloquer le clic. Chaque écran retrouve sa position de défilement.
+- **Écrans** : `document.startViewTransition` quand il existe, avec un glissement directionnel de 240 ms ; repli fondu + glissement de 200 ms sinon. En mode complet, l'onglet actif est peint dans la même image que le nouvel écran (`flushSync`). En mode sûr, `startTransition` découpe le rendu des longues listes sans bloquer le clic et aucune View Transition n'est lancée. Chaque écran retrouve sa position de défilement.
 - **Listes** : cascade de 40 ms par élément, plafonnée à 10 éléments et rejouée une seule fois par affichage. Les squelettes utilisent un shimmer aux couleurs de la marque, sans saut de mise en page.
 - **Points et progression** : compteur de 600 ms ralenti en fin de course, puce `+3` / `−1`, barres remplies par `scaleX` avec un ressort de 720 ms. Les confettis maison sont limités à 40 particules et s'arrêtent après 1,5 s ; le niveau reçoit une carte avec emblème.
 - **Micro-interactions** : soulèvement et inclinaison de 1,2° sur pointeur fin, retour d'appui sur les cartes cliquables, feuilles et panneau de filtres avec ressort, toasts empilés, fondu croisé des onglets de l'Entraide, ombre d'en-tête au défilement et bouton « Remonter ».
 - **Validation** : coche « Utile ✓ » dessinée en `stroke-dashoffset`, vibration `navigator.vibrate(10)` sur validation et célébration. L'interrupteur **Retour haptique** du Profil est actif par défaut et se coupe avec l'Économie de données.
-- **Désactivation** : `prefers-reduced-motion: reduce` et l'Économie de données coupent les View Transitions, les confettis, les squelettes animés et ramènent les durées à environ 0 ms. L'Économie de données coupe aussi l'haptique. Le mode d'effets **Léger** (auto ou manuel) va plus loin : fond statique, surfaces unies, aucun flou, aucune View Transition, cascade, inclinaison ni confetti ; les compteurs et les contenus restent visibles.
-- **Mesures** : voir [Téléphone réel et effets adaptatifs](#téléphone-réel-et-effets-adaptatifs) pour le protocole 6× CPU / Fast 3G et les tableaux avant/après. Repère public : Lighthouse mobile 94 → 94, FCP 2,1 s, LCP 2,6 → 2,8 s, CLS 0 ; l'audit connecté varie avec les données Supabase.
+- **Désactivation** : `prefers-reduced-motion: reduce` et l'Économie de données coupent les View Transitions, les confettis, les squelettes animés et ramènent les durées à environ 0 ms. L'Économie de données coupe aussi l'haptique. Le mode d'effets **Légers** (le mode sûr, auto ou manuel) va plus loin : fond solide avec un seul halo statique de 420 px, surfaces unies et bordure 1 px, aucun masque, flou, filtre, grain, reflet ni `content-visibility`, aucune View Transition, cascade, inclinaison ni confetti ; les compteurs et les contenus restent visibles.
+- **Mesures** : voir [Téléphone réel et effets adaptatifs](#téléphone-réel-et-effets-adaptatifs) pour le protocole 6× CPU / Fast 3G et les tableaux avant/après. Repère public : Lighthouse mobile 94 → 96, FCP 0,9 s, LCP 2,8 s, TBT 70-100 ms, CLS 0 ; l'audit connecté mesure 100 (98-100) sur la version courante et varie avec les données Supabase.
 
 ### Accessibilité et préférences
 
 - Contrastes AA, focus visible et cibles tactiles de 44 px minimum.
 - `prefers-reduced-motion` supprime animations, transitions et View Transitions.
 - Le mode **Économie de données** coupe le flou, les animations, l'haptique et allège les ombres.
+- En `Auto`, un pointeur grossier ou un écran ≤ 820 px force le mode sûr, indépendamment des performances. `Complets` reste activable dans Profil.
 - Le traducteur observait chaque frappe : il est désormais temporisé à 90 ms pour éviter les repeints en cascade.
 
-Les captures de cette passe sont dans `docs/screens/` (non versionnées, 8 fichiers, viewport 390 px capturé en DPR 2) : `accueil.jpg`, `entraide.jpg`, `regles.jpg`, `profil-reglages.jpg`, `diagnostic.jpg`, `diagnostic-bas.jpg`, `accueil-leger.jpg` et `entraide-leger.jpg`. Elles montrent le fond sans couture, les icônes poignée de main et livre ouvert, le réglage des effets, la page Diagnostic et le mode léger.
+Les captures de cette passe sont dans `docs/screens/` (non versionnées, 8 fichiers, viewport 390 × 844 capturé en DPR 2) : `accueil-avant-apres.jpg`, `recherche-avant-apres.jpg`, `projet-avant-apres.jpg`, `profil-avant-apres.jpg`, `profil-bas-avant-apres.jpg`, `recherche-menu.jpg`, `accueil-clair.jpg` et `remonter.jpg`. Les cinq composites placent la version `ca7c782` à gauche et la version courante à droite : salutation en casse normale, placeholder fixe, ligne « Récent » et son menu « ⋯ », puces en grille, fiche projet, nom affiché, segments pleine largeur et bouton Remonter.
 
 ## Direction artistique
 
 La direction artistique pousse l'interface vers un rendu premium, moderne et artistique, sans changer le contenu ni la logique métier, sans dépendance et sans ressource distante au runtime.
 
 - **Typographie** : Montserrat variable auto-hébergée (`public/fonts/montserrat-latin-var.woff2`, 400–700, sous-ensemble latin, `font-display: swap`), préchargée depuis `index.html`. Les titres utilisent une échelle fluide `clamp()`, un interlettrage resserré ; les chiffres sont tabulaires et les grands nombres passent en dégradé.
-- **Ambiance** : trois halos flous animés en 36 s sur `.bd-backdrop::before`, couche fixe hors de `.phone` ; grain SVG à 3 %, pause quand l'onglet est caché (`data-activity="hidden"`), désactivation avec `prefers-reduced-motion`, l'Économie de données ou le mode léger. Le thème clair reprend les mêmes halos en pastel.
-- **Matières** : cartes en verre à plusieurs couches, bordure dégradée de 1 px via `mask`, reflet intérieur et élévation cohérente ; monogrammes déterministes pour les projets, emblèmes SVG pour les six niveaux, anneaux d'avatar selon le niveau et illustrations inline pour les états vides, hors-ligne et erreurs.
+- **Ambiance** : trois halos flous animés en 36 s sur `.bd-backdrop::before`, couche fixe hors de `.phone` ; grain SVG à 3 %, pause quand l'onglet est caché (`data-activity="hidden"`), désactivation avec `prefers-reduced-motion`, l'Économie de données ou le mode sûr. En mode sûr, un seul halo statique de 420 px remplace les trois halos animés. Le thème clair reprend les mêmes halos en pastel.
+- **Matières** : cartes en verre à plusieurs couches, bordure dégradée de 1 px via `mask`, reflet intérieur et élévation cohérente ; monogrammes déterministes pour les projets, emblèmes SVG pour les six niveaux, anneaux d'avatar selon le niveau et illustrations inline pour les états vides, hors-ligne et erreurs. En mode sûr, ces matières deviennent des surfaces unies avec une bordure 1 px, sans masque, flou ni reflet.
 - **Icônes** : grille de 24 px, trait 1,75, bouts arrondis, tailles unifiées ; le remplissage est réservé à l'état actif et aux célébrations. Le « + » de la navigation reprend la taille et l'axe des autres icônes.
 - **Lancement** : splash HTML/CSS pur dans `index.html` (logo local pulsé, ligne de progression, styles clair et sombre), fondu déclenché au montage de React. Le manifest reprend le nom, les couleurs et les icônes de la marque.
-- **En-tête et navigation** : l'en-tête n'a plus de fond, de backdrop ni de conteneur ; le logo de la barre latérale est visible dès 640 px et masqué dans la grille mobile à cinq boutons.
+- **En-tête et navigation** : l'en-tête est transparent au repos, sans fond, backdrop ni conteneur ; après 8 px de défilement, une barre pleine largeur de la couleur du fond et un filet 1 px apparaissent, jamais au focus ni au clavier. Les points affichent une pièce et « N pts » ; le thème est une icône seule de 44 px. Le logo de la barre latérale est visible dès 640 px et masqué dans la grille mobile à cinq boutons.
 
-Poids CSS : **26,54 kB → 30,23 kB gzip** (+3,69 kB) lors de cette passe ; la passe mobile le porte à **33,52 kB gzip**, toujours sous le budget de 10 kB. Les animations restent sur `transform` et `opacity`, avec `prefers-reduced-motion`, Économie de données et mode d'effets léger.
+Poids CSS : **26,54 kB → 30,23 kB gzip** (+3,69 kB) lors de la refonte ; la passe mobile le porte à **33,52 kB gzip**, puis cette passe à **36,10 kB gzip**. Les animations restent sur `transform` et `opacity`, avec `prefers-reduced-motion`, Économie de données et mode d'effets sûr.
 
 Fichiers modifiés : `index.html`, `src/main.tsx`, `src/index.css`, `src/App.tsx`, `src/components/ui.tsx`, `src/components/motion.tsx`, `src/lib/motion.ts`, `src/lib/viewTransition.ts`, `src/lib/haptics.ts`, `src/lib/motion.test.ts`, `src/screens/ProfileScreen.tsx`, `src/screens/EntraideScreen.tsx`, `public/fonts/montserrat-latin-var.woff2` et `README.md`.
 
-Points non vérifiés : Safari/iOS et appareils physiques, lecteurs d'écran, clavier virtuel réel et zoom texte natif à 200 %. L'audit Lighthouse de l'accueil connecté reste variable (84–96, médiane 95) selon la charge de la machine ; la page publique, elle, mesure 94.
+Points non vérifiés : Safari/iOS et appareils physiques, lecteurs d'écran, clavier virtuel réel et zoom texte natif à 200 %. L'audit Lighthouse de l'accueil connecté reste variable (98–100 sur cette passe) selon la charge de la machine ; la page publique mesure 96.
 
 ## Affichage responsive
 
@@ -349,17 +387,60 @@ Sur Android, la barre d'adresse de Chrome se rétracte au défilement et le clav
 
 La correction tient en une seule couche : `.bd-backdrop` est un `div` fixe, hors de `.phone`, en `position: fixed; inset: 0; height: 100lvh`, avec les halos et le grain. `html` et `body` reprennent `--bd-bg-deep`, `.phone` devient transparent, ses anciens `::before`/`::after` sont désactivés. La navigation est opaque, exactement `var(--bd-bg)`, sans `backdrop-filter`. `theme-color` est mis à jour dans le même rendu que le thème (`#050816` en sombre, `#f7f9ff` en clair). Comme la couche est fixe et couvre la grande viewport, la barre rétractée, le clavier, le rebond et le passage sombre/clair ne peuvent plus découvrir un autre fond.
 
+En mode sûr, la couche devient `position: absolute`, haute de 420 px, avec un seul `radial-gradient` statique, et `html`, `body`, `.shell` et `.nav` sont de la même couleur pleine. C'est le fond par défaut sur un pointeur grossier ou un écran ≤ 820 px : la teinte ne dépend plus de la hauteur de la page.
+
 ### Décision des effets
 
 `src/lib/effects.ts` contient la règle pure, testée dans `src/lib/effects.test.ts`. L'ordre est strict :
 
-1. `Complets` force le mode complet, `Légers` force le mode léger.
-2. En `Auto`, `saveData`, `deviceMemory <= 4`, `hardwareConcurrency <= 4` ou une médiane de frame supérieure à 24 ms passent en léger.
-3. Sinon, complet.
+1. `Complets` force le mode complet, `Légers` force le mode sûr.
+2. En `Auto`, un pointeur grossier (`pointer: coarse`) ou une largeur ≤ 820 px passe en sûr, avant même les signaux de performance.
+3. Sinon, `saveData`, `deviceMemory <= 4`, `hardwareConcurrency <= 4` ou une médiane de frame supérieure à 24 ms passent en sûr.
+4. Sinon, complet.
 
-La préférence est mémorisée dans `localStorage` sous `bondev-effects` et appliquée avant React dans `src/main.tsx`. Sur un appareil qui semble puissant, une sonde de 2 s démarre 320 ms après le chargement, uniquement si l'onglet est visible ; elle ignore les deux premières frames et bascule en léger si la médiane dépasse 24 ms. Le Profil expose **Effets visuels : Auto / Complets / Légers** avec l'état effectif.
+La préférence est mémorisée dans `localStorage` sous `bondev-effects` et appliquée avant React dans `src/main.tsx`. Sur un appareil qui semble puissant, une sonde de 2 s démarre 320 ms après le chargement, uniquement si l'onglet est visible ; elle ignore les deux premières frames et bascule en sûr si la médiane dépasse 24 ms. Le Profil expose **Effets visuels : Auto / Complets / Légers** avec l'état effectif.
 
-En léger : fond statique (plus de dérive ni de grain), aucun `backdrop-filter`, surfaces unies, pas de View Transition, pas de cascade, pas d'inclinaison, pas de confettis, ombres simplifiées. Les compteurs de points restent visibles, les icônes, les dégradés de marque, les cibles de 44 px et tous les contenus restent identiques. En complet, rien n'est retiré : halos, verre, View Transitions et micro-interactions restent en place.
+En sûr : fond statique (plus de dérive ni de grain), aucun `backdrop-filter`, aucun `filter`, aucun `mask`/`border-image`/`mix-blend-mode`, surfaces unies avec une bordure 1 px, pas de reflet intérieur, pas de View Transition, pas de cascade, pas d'inclinaison, pas de confettis, ombres simples ≤ 12 px sans lueur, aucun `content-visibility`. Les compteurs de points restent visibles, les icônes, les dégradés de marque, les cibles de 44 px et tous les contenus restent identiques. En complet, rien n'est retiré : halos, verre, View Transitions et micro-interactions restent en place.
+
+### Laboratoire de rendu
+
+La page `#/diagnostic` expose dix interrupteurs persistés sous `bondev-render-lab`. Chacun coupe une famille CSS à risque et applique un attribut `data-lab-*` sur `<html>` :
+
+| Interrupteur | Famille coupée |
+|---|---|
+| Bordures en dégradé | `mask`, `mask-composite`, `border-image`, contours |
+| Ombres et lueurs | `box-shadow`, `text-shadow`, `drop-shadow` |
+| Reflets intérieurs | pseudo-éléments de brillance |
+| Fond fixe et halos | couche `fixed`, halos, dégradés animés |
+| Grain | bruit et `mix-blend-mode` |
+| Flous | `backdrop-filter`, `filter` |
+| Animations et transitions | `animation`, `transition`, `scroll-behavior` |
+| Dégradés SVG des icônes | `fill`/`stroke` en `url(#brand-gradient)` |
+| content-visibility et contain | `content-visibility`, `contain` |
+| View Transitions | `document.startViewTransition` |
+
+Les interrupteurs fonctionnent en mode sûr comme en mode complet : leurs sélecteurs portent `html[data-theme][data-effects]` pour passer après les règles `!important` du mode sûr. Le rapport copié contient les dix états. La procédure complète, les valeurs attendues et les causes/hypothèses sont dans [`docs/TEST-TELEPHONE.md`](docs/TEST-TELEPHONE.md).
+
+### En-tête, tuiles et états
+
+- L'en-tête est `sticky` et transparent au repos : aucun fond, bordure, ombre ou angle droit derrière le logo, les points ou le thème. La barre pleine largeur n'est peinte par `.topbar::before` qu'après 8 px de défilement, avec un filet de 1 px ; jamais au focus ni quand le clavier est ouvert.
+- `padding-top: calc(env(safe-area-inset-top) + 8px)`, hauteur 56 px. Les points affichent une pièce et « N pts ». Le thème est une icône seule de 44 px, sans cadre. Le titre reste sur une ligne avec ellipse ; l'écran Règles affiche « Règles ».
+- Les tuiles d'icônes utilisent un seul `linear-gradient` qui couvre 100 % × 100 % de la tuile. Le bouton « + » de navigation est un cercle de 22 px, aligné sur les autres icônes, avec un anneau et un symbole visibles en mode sûr. L'état vide utilise `StateArt` transparent, sans carré bleu.
+- Le focus programmatique du premier titre après navigation ne peint plus de halo (`outline` et `box-shadow` neutralisés pour `[tabindex="-1"]`).
+- La bannière invité lit son état de fermeture dès l'initialisation : elle n'apparaît plus une frame avant de disparaître, ce qui ramène le CLS Lighthouse connecté de 0,16 à 0. Un rechargement CDP à 500 px montre encore un CLS de 0,047 quand les données de progression déplacent `.impact-strip` ; Lighthouse connecté ne le reproduit pas (CLS 0).
+
+### Causes et hypothèses
+
+- **Liserés et bavures sur Xiaomi/Mali** : combinaison de `mask`/`mask-composite` (bordures dégradées), `backdrop-filter`, grain en `mix-blend-mode` et `filter` imbriqués. Le pilote Mali compose mal ces couches. Le mode sûr les retire tous ; le laboratoire permet d'isoler la famille fautive sur l'appareil.
+- **En-tête encadré** : ancienne marge de 20 px, fond, flou, bordure et rayon derrière le logo, les points et le thème ; une règle clavier peignait aussi un fond. L'en-tête est désormais transparent au repos et la barre n'existe qu'au défilement.
+- **Teinte variable** : le dégradé `.shell` était proportionnel à la hauteur de la page, et `.bd-backdrop` fixe superposait plusieurs halos. La couleur à une même hauteur changeait donc selon l'écran. Le fond sûr est solide, avec un seul radial statique de 420 px.
+- **Liseré en bas à droite** : `.nav { width: min(100%, 390px) }` laissait une bande de fond sur un écran plus large que 390 px. La nav est maintenant pleine largeur.
+- **Tuiles remplies à moitié** : dégradé radial dimensionné sur un coin, ou fond porté par un `div` interne plus petit que la tuile. Un seul `linear-gradient` couvre toute la tuile.
+- **Carré bleu de l'état vide** : `.empty > div` héritait du fond de tuile alors que `StateArt` a déjà son halo. Le sélecteur est limité aux tuiles et `.state-art` est transparent.
+- **Symbole « + » invisible** : le cercle avait été réduit à 22 px et son anneau dessiné par un masque ; en mode sûr, le masque est retiré et le trait de 13 px se perdait dans le fond. Le bouton garde un cercle de 22 px, aligné sur les autres icônes, avec un anneau de 1,5 px en deux couches de fond (sans masque) et un symbole de 14 px.
+- **« + » décalé quand le menu latéral s'élargit** : `margin:0 auto` sur le cercle, dans un bouton passé en `flex-direction:row` ; l'auto-marge absorbait l'espace libre et centrait le cercle, alors que les autres icônes restent à gauche. `margin:0` : le cercle garde le même axe que les autres dans les trois états (fermé, survolé, épinglé) et le libellé suit ; sur mobile, la grille le centre dans sa colonne.
+
+Le tableau détaillé, avec les valeurs CSS attendues et la procédure de test, est dans [`docs/TEST-TELEPHONE.md`](docs/TEST-TELEPHONE.md).
 
 ### Réactivité
 
@@ -368,12 +449,12 @@ En léger : fond statique (plus de dérive ni de grain), aucun `backdrop-filter`
 - Résultats et Entraide affichent 20 éléments par page, puis **Voir plus**. La première peinture monte 8 cartes, les suivantes arrivent par 6 toutes les 120 ms.
 - `content-visibility: auto` et `contain-intrinsic-size` évitent de mettre en page les cartes hors écran (96 px générique, 168 px pour les résultats, 210 px pour les questions, 64 px pour l'historique).
 - Les écouteurs de défilement sont passifs et coalescés par `requestAnimationFrame` ; aucune lecture de mise en page répétée dans le handler. `touch-action: manipulation`, `:active` immédiat et transitions limitées à `transform`/`opacity`.
-- En mode léger, `navigateWithMotion` utilise `startTransition` : le rendu d'une longue liste est découpé au lieu de bloquer l'événement. En mode complet, `flushSync` reste nécessaire pour peindre l'onglet actif et le nouvel écran dans la même image.
+- En mode sûr, `navigateWithMotion` utilise `startTransition` : le rendu d'une longue liste est découpé au lieu de bloquer l'événement. En mode complet, `flushSync` reste nécessaire pour peindre l'onglet actif et le nouvel écran dans la même image.
 - La recherche normalise une fois les mots-clés et met en cache les champs normalisés de chaque projet dans une `WeakMap` ; les résultats ne changent pas.
 
 ### Mesures à 6× CPU et Fast 3G
 
-Protocole : Chrome 157, viewport 390 × 844, DPR 2,625, 6× CPU, réseau Fast 3G (150 ms, environ 1,7 Mbit/s descendant et 768 kbit/s montant), 3 passages après un passage à chaud, médiane. « Blocage » = plus longue tâche longue démarrée après le clic, collectée 550 ms après les deux `requestAnimationFrame` qui suivent l'écran cible. « Stabilisation » = clic → cible DOM → 2 rAF. L'après est mesuré en **mode léger**, celui qu'un téléphone milieu de gamme reçoit en Auto.
+Protocole : Chrome 157, viewport 390 × 844, DPR 2,625, 6× CPU, réseau Fast 3G (150 ms, environ 1,7 Mbit/s descendant et 768 kbit/s montant), 3 passages après un passage à chaud, médiane. « Blocage » = plus longue tâche longue démarrée après le clic, collectée 550 ms après les deux `requestAnimationFrame` qui suivent l'écran cible. « Stabilisation » = clic → cible DOM → 2 rAF. L'après est mesuré en **mode sûr**, celui qu'un téléphone milieu de gamme reçoit en Auto.
 
 | Écran | Avant : stabilisation | Avant : blocage médian / max | Après : stabilisation | Après : blocage médian / max |
 |---|---:|---:|---:|---:|
@@ -386,38 +467,39 @@ Protocole : Chrome 157, viewport 390 × 844, DPR 2,625, 6× CPU, réseau Fast 3G
 
 Les six changements d'écran après sont sous **100 ms de blocage** (maximum 92 ms à l'accueil). Avant, Résultats (181 ms) et Profil (105 ms) dépassaient la limite. La stabilisation baisse de 10 à 40 % sur cinq écrans ; le fil de question reste dominé par le chargement réseau des réponses.
 
-Le mode complet a aussi été mesuré avec le même protocole : Accueil 354 ms (69 / 76 ms), Résultats 1 205 ms (238 / 255 ms), Fiche projet 497 ms (0 / 0 ms), Entraide 500 ms (76 / 105 ms), Fil 1 385 ms (52 / 52 ms), Profil 383 ms (60 / 64 ms). Il conserve la View Transition synchronisée : à 6× CPU, le rendu des 8 premières cartes de Résultats reste une tâche longue de 255 ms, soit environ 42 ms sur un appareil haut de gamme non bridé. Ce chemin n'est pas celui des appareils modestes, qui passent en léger avant React.
+Le mode complet a aussi été mesuré avec le même protocole : Accueil 354 ms (69 / 76 ms), Résultats 1 205 ms (238 / 255 ms), Fiche projet 497 ms (0 / 0 ms), Entraide 500 ms (76 / 105 ms), Fil 1 385 ms (52 / 52 ms), Profil 383 ms (60 / 64 ms). Il conserve la View Transition synchronisée : à 6× CPU, le rendu des 8 premières cartes de Résultats reste une tâche longue de 255 ms, soit environ 42 ms sur un appareil haut de gamme non bridé. Ce chemin n'est pas celui des appareils modestes, qui passent en sûr avant React.
 
 ### Lighthouse mobile
 
-**Écran de connexion** (page publique, un passage) :
+**Écran de connexion** (page publique, 3 passages : 96, 96, 95) :
 
 | Audit | Avant | Après |
 |---|---:|---:|
-| Performance | 94 | 94 |
+| Performance | 94 | 96 |
 | Accessibilité | 98 | 98 |
 | Best practices | 100 | 100 |
 | SEO | 92 | 92 |
-| FCP | 2,1 s | 2,1 s |
-| LCP | 2,6 s | 2,8 s |
-| TBT | 120 ms | 80 ms |
+| FCP | 2,1 s | 0,9 s |
+| LCP | 2,8 s | 2,8 s |
+| TBT | 80 ms | 80 ms |
 | CLS | 0 | 0 |
+| Speed Index | — | 1,5 s |
 
-**Écran connecté** (invité sur l'accueil, données Supabase chargées, 3 passages, médiane) :
+**Écran connecté** (invité sur l'accueil, données Supabase chargées, 3 passages : 100, 98, 100) :
 
 | Audit | Avant | Après |
 |---|---:|---:|
-| Performance | 88 (86–92) | 95 (84–96) |
+| Performance | 95 (84–96) | 100 (98–100) |
 | Accessibilité | 94 | 94 |
 | Best practices | 100 | 100 |
 | SEO | 92 | 92 |
-| FCP | 0,78 s | 0,79 s |
-| LCP | 1,04 s | 1,06 s |
-| TBT | 482 ms | 256 ms |
+| FCP | 0,79 s | 0,8 s |
+| LCP | 1,06 s | 0,9 s |
+| TBT | 256 ms | 80 ms |
 | CLS | 0 | 0 |
-| Speed Index | 2,03 s | 1,59 s |
+| Speed Index | 1,59 s | 1,2 s |
 
-La plage de l'après (84–96) montre la variabilité d'une session invitée Supabase : un passage peut descendre sous la médiane. Le TBT de l'écran connecté inclut le chargement des données et la création de la session ; il reste supérieur à celui de la connexion, mais sa médiane baisse de moitié. Le protocole 6× CPU ci-dessus est plus stable pour juger les changements d'écran.
+La plage de l'après (98-100) montre la variabilité d'une session invitée Supabase : un passage peut descendre sous la médiane. Le TBT de l'écran connecté inclut le chargement des données et la création de la session ; il reste supérieur à celui de la connexion, mais sa médiane baisse fortement. Le protocole 6× CPU ci-dessus est plus stable pour juger les changements d'écran. Les chiffres « avant » sont ceux du commit précédent (`ca7c782`), déjà mesurés dans la passe mobile ; les « après » ont été mesurés sur la version courante, avec un profil invité existant et `--disable-storage-reset` pour éviter que Lighthouse ne reparte sur l'écran de connexion. Un contrôle final après la restauration du bouton « + » donne 3 passages 96/96/95, avec un TBT de 70 à 100 ms (médiane 80 ms) et un Speed Index de 1,5 s : le score reste identique, le TBT varie avec la charge de la machine. Dans un relevé intermédiaire de cette passe, le CLS connecté mesurait 0,16 avant la correction de la bannière invité ; il est à 0 après.
 
 ### Checklist Android
 
@@ -427,10 +509,13 @@ La plage de l'après (84–96) montre la variabilité d'une session invitée Sup
 - [ ] Clavier ouvert dans la recherche et dans « Poser une question » : le fond reste continu, l'en-tête reste visible, le champ n'est pas masqué.
 - [ ] Rebond en haut et en bas (overscroll) : aucune couture, aucun flash blanc ou noir.
 - [ ] Thème sombre puis clair : la barre système et la barre d'adresse reprennent `theme-color`, sans transition visible.
-- [ ] Entraide : poignée de main en trait, puis pleine en dégradé quand l'onglet est actif ; aucune bulle de dialogue.
-- [ ] Règles : livre ouvert en trait avec lignes de pages, puis pages pleines en dégradé quand l'onglet est actif.
+- [ ] Entraide : bulle de dialogue en trait, puis pleine en dégradé quand l'onglet est actif.
+- [ ] Règles : livre fermé en trait, puis plein en dégradé quand l'onglet est actif.
 - [ ] Profil > Effets visuels : Auto, Complets, Légers ; le choix survit à un rechargement.
-- [ ] En mode léger : fond fixe, pas de flou, pas de confettis ; compteurs de points et contenus toujours lisibles.
+- [ ] En mode sûr : fond solide, un seul halo statique de 420 px, pas de flou, pas de masque, pas de grain, pas de confettis ; compteurs de points et contenus toujours lisibles.
+- [ ] `#/diagnostic` : les dix interrupteurs du laboratoire, « Tout réactiver », persistance après rechargement et rapport copié avec les dix états.
+- [ ] En-tête : transparent au repos, barre pleine largeur et filet 1 px après 8 px de défilement, jamais au focus ni au clavier ; pièce + « N pts » ; thème en icône seule de 44 px ; titre sur une ligne avec ellipse ; « Règles ».
+- [ ] Tuiles : un seul dégradé couvrant 100 % de la tuile sur l'accueil, l'Entraide, la progression, la navigation, le tutoriel et les états vides.
 - [ ] Listes : 20 éléments, « Voir plus », les cartes suivantes arrivent sans saut de mise en page.
 - [ ] `#/diagnostic` : dimensions, visualViewport, test 3 s, « Copier le rapport » en français.
 - [ ] Mode avion puis retour réseau : bannière hors-ligne, aucune donnée personnelle dans le diagnostic.
@@ -438,14 +523,14 @@ La plage de l'après (84–96) montre la variabilité d'une session invitée Sup
 ### Vérifications et fichiers modifiés
 
 ```bash
-npm test          # 8 fichiers, 100 tests
+npm test          # 10 fichiers, 114 tests
 npx tsc --noEmit
 npm run build
 ```
 
-Fichiers modifiés : `index.html`, `src/main.tsx`, `src/App.tsx`, `src/index.css`, `src/components/ui.tsx`, `src/components/motion.tsx`, `src/components/GuestBanner.tsx`, `src/lib/auth.tsx`, `src/lib/effects.ts`, `src/lib/effects.test.ts`, `src/lib/motion.ts`, `src/lib/router.ts`, `src/lib/search.ts`, `src/lib/viewTransition.ts`, `src/screens/DiagnosticScreen.tsx`, `src/screens/EntraideScreen.tsx`, `src/screens/ProfileScreen.tsx`, `src/screens/ShareProjectScreen.tsx`, `src/screens/types.ts` et `README.md`. Aucune dépendance ajoutée, aucun SQL modifié, aucun changement de contenu métier ou d'API.
+Fichiers modifiés : `README.md`, `src/App.tsx`, `src/components/GuestBanner.tsx`, `src/components/motion.tsx`, `src/components/ui.tsx`, `src/index.css`, `src/lib/api.ts`, `src/lib/effects.ts`, `src/lib/effects.test.ts`, `src/lib/format.ts`, `src/lib/format.test.ts`, `src/lib/progress.ts`, `src/lib/renderLab.ts`, `src/lib/renderLab.test.ts`, `src/lib/viewTransition.ts`, `src/main.tsx`, `src/screens/DiagnosticScreen.tsx`, `src/screens/HowItWorksScreen.tsx`, `src/screens/ProfileScreen.tsx` et `docs/TEST-TELEPHONE.md`. Aucune dépendance ajoutée, aucun SQL modifié, aucun changement de contenu métier ou d'API.
 
-Points non vérifiés : Samsung Internet et navigateur Xiaomi sur appareil physique, iOS Safari, clavier virtuel réel, lecteurs d'écran et zoom texte natif à 200 %. Le comportement exact de la barre d'adresse et des gestes système varie selon le constructeur ; il a été reproduit dans Chrome par émulation de la viewport, pas sur chaque surcouche Android.
+Points non vérifiés : Samsung Internet et navigateur Xiaomi sur appareil physique, iOS Safari, clavier virtuel réel, lecteurs d'écran et zoom texte natif à 200 %. Les artefacts GPU Mali/Adreno ne sont pas reproduits sur un GPU physique dans cette passe : le laboratoire et les mesures CSS permettent de les isoler sur l'appareil. Le comportement exact de la barre d'adresse et des gestes système varie selon le constructeur ; il a été reproduit dans Chrome par émulation de la viewport, pas sur chaque surcouche Android.
 
 ## Diagnostic
 
@@ -458,8 +543,9 @@ Elle affiche :
 - dimensions de la fenêtre et de `visualViewport`, offsets et échelle, DPR, `screen.width/height`, safe areas lues par une sonde `env()`, user-agent ;
 - `deviceMemory`, `hardwareConcurrency`, `saveData`, type de connexion, `display-mode`, mode d'effets effectif ;
 - prise en charge de View Transitions, `backdrop-filter` et `content-visibility` ;
+- le **Laboratoire de rendu** : dix interrupteurs persistés sous `bondev-render-lab`, appliqués immédiatement sur `<html>` par `data-lab-*`, avec un bouton **Tout réactiver** ;
 - un test de frames de 3 s lancé automatiquement 350 ms après l'ouverture, avec médiane, p95, nombre de frames > 50 ms et long tasks. Le bouton **Relancer le test** refait la mesure ; l'onglet doit rester visible.
-- le bouton **Copier le rapport** produit un texte français lisible, avec repli `execCommand` si l'API Clipboard est refusée.
+- le bouton **Copier le rapport** produit un texte français lisible, avec repli `execCommand` si l'API Clipboard est refusée. Il contient le pointeur, la largeur, le mode d'effets et les dix états du laboratoire.
 
 ## Audit des icônes
 
@@ -470,10 +556,10 @@ Toutes les icônes partagent la grille de 24 px, un trait de 1,75, des bouts et 
 | Icône | Usage | Variantes |
 |---|---|---|
 | `home` | Accueil, onglet de navigation | trait dégradé ; plein dégradé actif |
-| `handshake` | Entraide : navigation, tutoriel, étapes et état vide | trait ; plein dégradé actif ; **aucune bulle de dialogue** |
+| `help` | Entraide : navigation, état vide | trait ; plein dégradé actif |
 | `plus` | Ajouter : navigation, bouton « Poser ma question » | trait ; plein dégradé actif ; signe « + » couleur surface sur le cercle |
 | `user` | Profil, connexion invitée | trait ; plein dégradé actif |
-| `book` | Règles : navigation, en-tête, lien du Profil | trait avec lignes de pages ; plein dégradé actif (pages pleines) |
+| `book` | Règles : navigation, en-tête, lien du Profil | trait ; plein dégradé actif |
 
 ### Actions et navigation secondaire
 
@@ -512,11 +598,11 @@ Toutes les icônes partagent la grille de 24 px, un trait de 1,75, des bouts et 
 | `shield` | Réserve de la bibliothèque, aucun usage actuel | trait |
 | `calendar` | Réserve de la bibliothèque, aucun usage actuel | trait |
 | `sparkles` | Réserve de la bibliothèque, aucun usage actuel | trait |
-| `help` | Ancienne bulle d'Entraide, retirée de la navigation | trait ; une variante pleine existe dans `FILLED_ICONS` |
+| `handshake` | Tutoriel, étapes, état vide et badges d'Entraide | trait |
 
 ### Variantes pleines
 
-`FILLED_ICONS` contient `home`, `help`, `user`, `handshake`, `book` et `plus`. Elles sont peintes avec `url(#brand-gradient)`, sans trait. La poignée de main et le livre ouvert proviennent des tracés Material Symbols, ce qui garantit la même silhouette en trait et en plein ; le « + » garde un signe couleur surface, lisible sur le dégradé dans les deux thèmes.
+`FILLED_ICONS` contient `home`, `help`, `user`, `book` et `plus`. Elles sont peintes avec `url(#brand-gradient)`, sans trait. Le livre garde la même silhouette fermée en trait et en plein ; le « + » garde un signe couleur surface, lisible sur le dégradé dans les deux thèmes.
 
 ## Les commandes utiles
 | Commande | Ce qu'elle fait |

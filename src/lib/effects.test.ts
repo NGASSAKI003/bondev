@@ -48,6 +48,27 @@ describe('decideEffects — signaux automatiques', () => {
     expect(decideEffects(environment({ medianFrameMs: null }))).toBe('full')
   })
 
+  it('passe en mode sûr sur un écran tactile, même rapide', () => {
+    expect(decideEffects(environment({ coarsePointer: true }))).toBe('light')
+    expect(
+      decideEffects(
+        environment({
+          coarsePointer: true,
+          deviceMemory: 12,
+          hardwareConcurrency: 12,
+          medianFrameMs: 8,
+        }),
+      ),
+    ).toBe('light')
+  })
+
+  it('passe en mode sûr sur une fenêtre de 820 px ou moins', () => {
+    expect(decideEffects(environment({ viewportWidth: 820 }))).toBe('light')
+    expect(decideEffects(environment({ viewportWidth: 390 }))).toBe('light')
+    expect(decideEffects(environment({ viewportWidth: 821 }))).toBe('full')
+    expect(decideEffects(environment({ viewportWidth: null }))).toBe('full')
+  })
+
   it('ignore les signaux matériels absents ou invalides', () => {
     expect(
       decideEffects(
@@ -69,7 +90,7 @@ describe('decideEffects — préférence manuelle', () => {
     expect(decideEffects(environment({ preference: 'light' }))).toBe('light')
   })
 
-  it('force le mode complet malgré saveData et une sonde lente', () => {
+  it('force le mode complet malgré saveData, le tactile et une sonde lente', () => {
     expect(
       decideEffects(
         environment({
@@ -78,6 +99,8 @@ describe('decideEffects — préférence manuelle', () => {
           deviceMemory: 2,
           hardwareConcurrency: 2,
           medianFrameMs: 60,
+          coarsePointer: true,
+          viewportWidth: 390,
         }),
       ),
     ).toBe('full')

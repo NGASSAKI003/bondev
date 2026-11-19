@@ -5415,3 +5415,64 @@ html[data-theme] .logout{
     width:100%;
   }
 }
+
+/* ---- Bandeau de mise à jour du service worker ------------------------- */
+html[data-theme] .update-banner{
+  position:fixed;
+  z-index:68;
+  left:50%;
+  bottom:calc(96px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  width:min(calc(100% - 32px),358px);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 10px 10px 16px;
+  border:1px solid var(--bd-border-strong);
+  border-radius:var(--bd-radius-md);
+  background:var(--bd-surface);
+  box-shadow:var(--bd-shadow-medium);
+  color:var(--bd-text);
+  font-size:13px;
+  line-height:1.35;
+}
+
+html[data-theme] .update-banner span{
+  min-width:0;
+}
+
+html[data-theme] .update-banner button{
+  flex:none;
+  min-height:38px;
+  padding:0 14px;
+  border:0;
+  border-radius:var(--bd-radius-sm);
+  background:var(--bd-gradient-primary);
+  color:#fff;
+  font:inherit;
+  font-size:13px;
+  font-weight:600;
+}
+
+html[data-theme] .update-banner button:active{
+  transform:scale(.97);
+}
+
+html[data-theme] .update-banner button:focus-visible{
+  outline:2px solid var(--bd-brand-ink);
+  outline-offset:2px;
+}
+
+@media(min-width:640px){
+  html[data-theme] .update-banner{
+    left:calc(50% + 44px);
+    bottom:24px;
+  }
+}
+
+@media(min-width:1025px){
+  html[data-theme] .update-banner{
+    left:calc(50% + 130px);
+  }
+}

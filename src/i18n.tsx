@@ -256,6 +256,8 @@ const EN: Record<string, string> = {
   'Chargement de l’écran': 'Loading screen',
   "Oups, quelque chose s'est mal passé": 'Oops, something went wrong',
   'Recharger': 'Reload',
+  'Nouvelle version disponible': 'New version available',
+  'Actualiser': 'Refresh',
   'Recharge l’application pour continuer.': 'Reload the app to continue.',
 }
 

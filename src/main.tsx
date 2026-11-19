@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { startTranslator } from './i18n'
+import { UpdateBanner } from './components/UpdateBanner'
 import { AuthProvider } from './lib/auth'
 import {
   applyEffects,
@@ -14,12 +15,11 @@ import {
   applyRenderLabState,
   readRenderLabState,
 } from './lib/renderLab'
+import { registerServiceWorker } from './lib/serviceWorker'
 import { supabaseConfigError } from './lib/supabase'
 
 startTranslator()
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'))
-}
+registerServiceWorker()
 
 /**
  * Pose les préférences qui pilotent le fond animé avant le premier rendu :
@@ -162,6 +162,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <App />
         </AuthProvider>
+        <UpdateBanner />
       </AppErrorBoundary>
     )}
   </React.StrictMode>,

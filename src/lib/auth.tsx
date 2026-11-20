@@ -271,7 +271,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       currentUserIdRef.current = nextSession.user.id
       setSession(nextSession)
       setProfileError(null)
-      if (initial) setLoading(true)
+      // L'interface s'affiche dès que la session est connue : le profil et les
+      // points se chargent ensuite sans bloquer le premier rendu.
+      if (initial) setLoading(false)
 
       try {
         const nextProfile = await loadProfileOnce(nextSession.user)

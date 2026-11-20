@@ -687,6 +687,11 @@ function HighlightedText({
   )
 }
 
+/** Vrai quand la liste de suggestions sera réellement rendue. */
+function hasSearchSuggestions(query: string): boolean {
+  return findConcepts(query).length > 0
+}
+
 function SearchSuggestions({
   query,
   onPick,
@@ -812,7 +817,7 @@ function RecentSearches({
           className="recent-menu-trigger"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          aria-controls="recent-searches-menu"
+          aria-controls={menuOpen ? 'recent-searches-menu' : undefined}
           aria-label={
             lang === 'en'
               ? 'Recent search options'
@@ -1114,7 +1119,7 @@ function Login() {
   }
 
   return (
-    <main className="login">
+    <main className="login" id="contenu" tabIndex={-1}>
       <div className="login-theme">
         <LangToggle />
         <ThemeToggle />
@@ -1305,6 +1310,7 @@ function Home({
   const greetingAvatar = profile?.avatar_url.startsWith('https://')
     ? profile.avatar_url
     : ''
+  const showSuggestions = hasSearchSuggestions(draft)
   const recent = projects?.slice(0, 3) ?? []
   const examples =
     lang === 'en'
@@ -1368,7 +1374,9 @@ function Home({
                     ? 'Search the project catalogue'
                     : 'Rechercher dans le catalogue'
                 }
-                aria-controls="home-search-suggestions"
+                aria-controls={
+                  showSuggestions ? 'home-search-suggestions' : undefined
+                }
                 aria-keyshortcuts="Control+K"
                 autoComplete="off"
                 inputMode="search"
@@ -1793,6 +1801,7 @@ function Results({
         : `${count} projet${count === 1 ? '' : 's'} trouvé${count === 1 ? '' : 's'}`
 
   const understood = lang === 'en' ? outcome.understoodEn : outcome.understood
+  const showSuggestions = hasSearchSuggestions(draft)
 
   // Entrée valide la recherche : le clavier mobile se referme et la liste
   // revient dans le champ de vision, sans perdre la saisie.
@@ -1834,7 +1843,9 @@ function Results({
               ? 'Search the project catalogue'
               : 'Rechercher dans le catalogue'
           }
-          aria-controls="catalogue-search-suggestions"
+          aria-controls={
+            showSuggestions ? 'catalogue-search-suggestions' : undefined
+          }
           aria-keyshortcuts="Control+K"
           autoComplete="off"
           inputMode="search"

@@ -933,7 +933,6 @@ html[data-theme=light] .guest-restriction .textbtn{color:var(--bd-link)}
   --safe-top:env(safe-area-inset-top,0px);
   --safe-right:env(safe-area-inset-right,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
-  --safe-left:env(safe-area-inset-left,0px);
 }
 
 /* Hauteurs dynamiques : la barre d'URL mobile ne coupe plus les feuilles. */
@@ -1220,7 +1219,6 @@ html[data-theme="dark"]{
   --bd-radius-sm:12px;
   --bd-radius-md:16px;
   --bd-radius-lg:22px;
-  --bd-radius-xl:28px;
   --bd-radius-pill:999px;
 
   --bd-shadow-soft:0 8px 24px rgba(0,0,0,.22);
@@ -1228,14 +1226,9 @@ html[data-theme="dark"]{
   --bd-shadow-brand:0 12px 32px rgba(47,107,255,.36);
   --bd-shadow-danger:0 12px 28px rgba(184,31,69,.30);
 
-  --bd-space-1:4px;
-  --bd-space-2:8px;
   --bd-space-3:12px;
   --bd-space-4:16px;
   --bd-space-5:20px;
-  --bd-space-6:24px;
-  --bd-space-7:28px;
-  --bd-space-8:32px;
 
   --bd-duration-1:120ms;
   --bd-duration-2:200ms;

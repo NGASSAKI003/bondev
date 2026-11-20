@@ -334,7 +334,6 @@ export function Icon({
       </>
     ),
     check: <path d="m5 12 4 4L19 6" />,
-    chevron: <path d="m6 9 6 6 6-6" />,
     handshake: (
       <>
         <path d="m11 17 2 2a1 1 0 1 0 3-3" />
@@ -394,21 +393,6 @@ export function Icon({
       <>
         <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" />
         <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
-      </>
-    ),
-    shield: (
-      <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6Z" />
-    ),
-    calendar: (
-      <>
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M16 3v4M8 3v4M3 10h18" />
-      </>
-    ),
-    sparkles: (
-      <>
-        <path d="M12 3.5 13.6 8 18 9.5 13.6 11 12 15.5 10.4 11 6 9.5 10.4 8Z" />
-        <path d="M19 15v4M17 17h4M5 3v3M3.5 4.5h3" />
       </>
     ),
     coin: (

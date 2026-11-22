@@ -510,7 +510,6 @@ function WeekCard({
   onHow: () => void
 }) {
   const lang = useLang()
-  const streak = progress?.streak
   return (
     <section className="glass week-card" aria-labelledby="week-title">
       <div className="week-head">
@@ -2458,7 +2457,10 @@ function Tutorial({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0)
   const cardRef = useRef<HTMLElement | null>(null)
   const doneRef = useRef(onDone)
-  doneRef.current = onDone
+
+  useEffect(() => {
+    doneRef.current = onDone
+  }, [onDone])
 
   useEffect(() => {
     const card = cardRef.current
@@ -2745,7 +2747,7 @@ function LoadingScreen() {
   )
 }
 export default function App() {
-  const { session, loading, profileError } = useAuthSession()
+  const { session, loading, profile, profileError } = useAuthSession()
   const lang = useLang()
   const [screen, setScreen] = useState<Screen>('login')
   const [sheet, setSheet] = useState(false)
@@ -2808,6 +2810,7 @@ export default function App() {
   }, [])
 
   const userId = session?.user.id
+  const profileId = profile?.id ?? null
 
   const pendingScroll = useRef<number | null>(null)
   const pendingFocus = useRef(false)
@@ -2823,7 +2826,10 @@ export default function App() {
           ? 'home'
           : screen
         : 'login'
-  currentScreenRef.current = currentScreen
+
+  useEffect(() => {
+    currentScreenRef.current = currentScreen
+  }, [currentScreen])
 
   const saveHistoryScroll = useCallback(() => {
     const state = history.state as { index?: number; scrollY?: number } | null
@@ -3099,7 +3105,9 @@ export default function App() {
             '',
             buildHash(route),
           )
-        } catch {}
+        } catch {
+          /* L'historique peut être verrouillé : la navigation reste utilisable. */
+        }
       }
       applyRoute(route)
       setNavTick((value) => value + 1)
@@ -3119,7 +3127,9 @@ export default function App() {
           '',
           buildHash(route),
         )
-      } catch {}
+      } catch {
+        /* L'historique peut être verrouillé : la navigation reste utilisable. */
+      }
       setNavTick((value) => value + 1)
     }
   }, [applyRoute, loading, userId])
@@ -3239,7 +3249,9 @@ export default function App() {
   }, [screen, lang])
 
   const loadProgress = useCallback(async () => {
-    if (!userId) return
+    // Le profil est créé juste après la connexion. Attendre sa présence évite
+    // d'afficher une erreur de progression sur un compte tout neuf.
+    if (!userId || !profileId) return
     const request = progressRequest.current + 1
     progressRequest.current = request
     setProgressLoading(true)
@@ -3255,7 +3267,7 @@ export default function App() {
     } finally {
       if (request === progressRequest.current) setProgressLoading(false)
     }
-  }, [userId])
+  }, [userId, profileId])
 
   useEffect(() => {
     progressRequest.current += 1
@@ -3267,9 +3279,10 @@ export default function App() {
       setProgressLoading(false)
       return
     }
+    // Tant que le profil n'existe pas, l'écran de chargement reste affiché.
     setProgressLoading(true)
-    void loadProgress()
-  }, [userId, loadProgress])
+    if (profileId) void loadProgress()
+  }, [userId, profileId, loadProgress])
 
   useEffect(() => {
     if (!userId) return
@@ -3520,7 +3533,9 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('bondev-nav', pinned ? 'open' : 'closed')
-    } catch {}
+    } catch {
+      /* Le stockage local peut être refusé : le menu reste utilisable. */
+    }
   }, [pinned])
   const removeRecent = (value: string) => {
     setRecentSearches((current) => removeRecentSearch(value, current))
@@ -3786,14 +3801,16 @@ export default function App() {
             {sheet && (
               <div
                 className={`sheet-backdrop ${closing ? 'out' : ''}`}
-                onClick={() => closeSheet()}
+                role="presentation"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) closeSheet()
+                }}
               >
                 <section
                   className="add-sheet"
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="add-sheet-title"
-                  onClick={(e) => e.stopPropagation()}
                 >
                   <i />
                   <h2 id="add-sheet-title">Que veux-tu ajouter ?</h2>

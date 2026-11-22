@@ -57,7 +57,7 @@ applyRenderLabState(
  * mémoire, cœurs) sont immédiats. Une sonde de 2 s affine ensuite le choix
  * sur les appareils qui semblent puissants mais rament au démarrage.
  */
-let effectsPreference = readEffectsPreference(
+const effectsPreference = readEffectsPreference(
   typeof localStorage === 'undefined' ? null : localStorage,
 )
 writeEffectsPreference(

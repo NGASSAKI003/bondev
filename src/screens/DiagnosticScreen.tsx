@@ -482,6 +482,7 @@ export function Diagnostic() {
               </span>
               <input
                 type="checkbox"
+                aria-label={item.label}
                 checked={lab[item.flag]}
                 onChange={(event) =>
                   setLab((current) => ({

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualite:
+    name: Lint, types, tests et build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Valeurs factices : le build de CI ne se connecte à aucune base.
+      VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: ci-placeholder
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Vérifier le code avec ESLint
+        run: npm run lint
+
+      - name: Vérifier les types TypeScript
+        run: npm run typecheck
+
+      - name: Lancer les tests
+        run: npm test
+
+      - name: Construire la version de production
+        run: npm run build
+
+      - name: Auditer les dépendances
+        run: npm audit --audit-level=high

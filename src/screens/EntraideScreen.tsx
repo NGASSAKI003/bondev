@@ -1541,6 +1541,7 @@ export function Add({
         <label className="check-line">
           <input
             type="checkbox"
+            aria-label={lang === 'en' ? 'Beginners welcome' : 'Débutant bienvenu'}
             checked={draft.beginnerOk}
             onChange={(event) => updateDraft({ beginnerOk: event.target.checked })}
           />

@@ -22,5 +22,6 @@ logs/
 /.plugins/
 /.opencode-skills/
 
-# Captures d'écran locales : non versionnées.
+# Captures locales non versionnées. Les visuels du README vivent dans docs/images/.
 docs/screens/
+docs/capture-log.json

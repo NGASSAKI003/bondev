@@ -1,0 +1,52 @@
+name: Keepalive Supabase
+
+on:
+  schedule:
+    # Tous les trois jours à 06:00 UTC. GitHub peut décaler l'exécution de
+    # quelques minutes : le but est d'éviter la mise en pause du projet gratuit,
+    # pas de garantir une heure exacte.
+    - cron: '0 6 */3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keepalive-supabase
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    name: Réveiller l'API Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Lire une ligne publique
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "::error::Configure les secrets SUPABASE_URL et SUPABASE_ANON_KEY."
+            exit 1
+          fi
+
+          url="${SUPABASE_URL%/}/rest/v1/profiles?select=id&limit=1"
+
+          for tentative in 1 2 3; do
+            if curl --fail --silent --show-error \
+              --connect-timeout 10 --max-time 30 \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+              -H "Accept: application/json" \
+              "${url}" > /dev/null; then
+              echo "Supabase répond (tentative ${tentative})."
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "::error::Supabase ne répond pas après trois tentatives."
+          exit 1

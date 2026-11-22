@@ -82,7 +82,7 @@ const EN: Record<string, string> = {
 
   // Messages d'erreur traduits par l'API
   'Ta session a expiré. Reconnecte-toi.': 'Your session expired. Please sign in again.',
-  'Impossible de contacter le serveur. Vérifie ta connexion et réessaie.': 'Cannot reach the server. Check your connection and try again.',
+  'Le service est momentanément indisponible, réessaie dans un instant.': 'The service is temporarily unavailable, please try again in a moment.',
   'Trop de tentatives. Patiente un moment avant de réessayer.': 'Too many attempts. Wait a moment before trying again.',
   'Cette information est déjà utilisée.': 'This information is already in use.',
   'Tu n’as pas le droit de faire cette action.': 'You are not allowed to do this action.',

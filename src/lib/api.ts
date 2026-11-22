@@ -310,7 +310,7 @@ export function toFrenchError(error: unknown): string {
     lower.includes('load failed') ||
     lower.includes('network request failed')
   ) {
-    return 'Impossible de contacter le serveur. Vérifie ta connexion et réessaie.'
+    return 'Le service est momentanément indisponible, réessaie dans un instant.'
   }
   if (
     status === 429 ||

@@ -110,7 +110,8 @@ flux, de la sécurité et des choix de performance est dans
 
 ## Démarrage rapide
 
-Prérequis : **Node.js 20 ou plus**, Git, et un projet Supabase.
+Prérequis : **Node.js 22.12 ou plus** (22 LTS recommandé), Git, et un projet
+Supabase.
 
 ```bash
 git clone https://github.com/NGASSAKI003/bondev.git

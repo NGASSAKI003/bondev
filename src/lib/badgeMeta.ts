@@ -42,7 +42,7 @@ export const BADGE_FAMILY_META: Record<BadgeFamily, BadgeFamilyMeta> = {
   },
 }
 
-export const TIER_LABELS: Record<BadgeTier, { fr: string; en: string }> = {
+const TIER_LABELS: Record<BadgeTier, { fr: string; en: string }> = {
   bronze: { fr: 'Bronze', en: 'Bronze' },
   silver: { fr: 'Argent', en: 'Silver' },
   gold: { fr: 'Or', en: 'Gold' },

@@ -240,8 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const pending = profileRequestRef.current
     if (pending && pending.userId === user.id) return pending.promise
 
-    let promise: Promise<Profile>
-    promise = ensureProfile(user).finally(() => {
+    const promise: Promise<Profile> = ensureProfile(user).finally(() => {
       if (profileRequestRef.current?.promise === promise) {
         profileRequestRef.current = null
       }
@@ -271,7 +270,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       currentUserIdRef.current = nextSession.user.id
       setSession(nextSession)
       setProfileError(null)
-      if (initial) setLoading(true)
+      // L'interface s'affiche dès que la session est connue : le profil et les
+      // points se chargent ensuite sans bloquer le premier rendu.
+      if (initial) setLoading(false)
 
       try {
         const nextProfile = await loadProfileOnce(nextSession.user)
@@ -546,14 +547,3 @@ export function useAuthActions(): AuthActionsValue {
   return context
 }
 
-/**
- * Compatibilité : renvoie les trois tranches d'un coup. Les nouveaux écrans
- * préfèrent `useAuthSession`, `useAuthStats` ou `useAuthActions` pour ne pas
- * se re-rendre quand une tranche qu'ils n'utilisent pas change.
- */
-export function useAuth(): AuthContextValue {
-  const session = useAuthSession()
-  const stats = useAuthStats()
-  const actions = useAuthActions()
-  return { ...session, ...stats, ...actions }
-}

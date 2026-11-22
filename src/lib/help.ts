@@ -2,8 +2,6 @@ export type HelpLang = 'fr' | 'en'
 export type HelpTier = 1 | 3 | 6
 export type HelpStatus = 'open' | 'resolved' | 'expired' | 'withdrawn'
 
-export const HELP_TIERS: readonly HelpTier[] = [1, 3, 6]
-
 const TIER_LABELS: Record<HelpTier, { fr: string; en: string }> = {
   1: { fr: 'Coup de pouce', en: 'Quick help' },
   3: { fr: 'Aide moyenne', en: 'Medium help' },

@@ -10,7 +10,7 @@ describe('toFrenchError', () => {
 
   it('traduit les erreurs de connexion et de réseau', () => {
     expect(toFrenchError(new Error('Failed to fetch'))).toBe(
-      'Impossible de contacter le serveur. Vérifie ta connexion et réessaie.',
+      'Le service est momentanément indisponible, réessaie dans un instant.',
     )
     expect(toFrenchError(new Error('Auth session missing'))).toBe(
       'Ta session a expiré. Reconnecte-toi.',

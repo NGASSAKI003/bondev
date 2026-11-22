@@ -1,4 +1,4 @@
-export const HAPTICS_KEY = 'bondev-haptics'
+const HAPTICS_KEY = 'bondev-haptics'
 
 let lastVibration = 0
 
@@ -24,7 +24,7 @@ export function writeHapticsEnabled(enabled: boolean): void {
  * `prefers-reduced-motion` ne concerne que le mouvement visuel : le choix
  * haptique reste donc indépendant.
  */
-export function hapticsAllowed(): boolean {
+function hapticsAllowed(): boolean {
   if (typeof navigator === 'undefined' || typeof document === 'undefined') {
     return false
   }

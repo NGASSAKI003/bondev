@@ -34,6 +34,7 @@ export default defineConfig(({ mode }) => {
       supabasePreconnect(env.VITE_SUPABASE_URL ?? ''),
     ],
     build: {
+      sourcemap: false,
       rollupOptions: {
         output: {
           manualChunks(id) {

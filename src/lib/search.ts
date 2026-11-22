@@ -8,7 +8,7 @@
  * résultat et sans changer les écrans.
  */
 
-export type SearchConceptId =
+type SearchConceptId =
   | 'mobile-money'
   | 'offline'
   | 'ussd'
@@ -33,7 +33,7 @@ export type SearchConceptId =
   | 'sme'
   | 'mobile'
 
-export type SearchField = 'tags' | 'technologies' | 'title' | 'description'
+type SearchField = 'tags' | 'technologies' | 'title' | 'description'
 
 export type SearchConcept = {
   id: SearchConceptId
@@ -48,7 +48,7 @@ export type SearchConcept = {
  * Dictionnaire extensible. Chaque entrée associe un concept à ses mots-clés
  * français et anglais. Les accents, la casse et la ponctuation sont ignorés.
  */
-export const SEARCH_CONCEPTS: readonly SearchConcept[] = [
+const SEARCH_CONCEPTS: readonly SearchConcept[] = [
   {
     id: 'mobile-money',
     label: { fr: 'Mobile Money', en: 'Mobile Money' },
@@ -500,7 +500,7 @@ export type SearchableProject = {
   last_activity: string
 }
 
-export type ProjectSearchResult<
+type ProjectSearchResult<
   T extends SearchableProject = SearchableProject,
 > = {
   project: T

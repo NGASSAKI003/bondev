@@ -1,7 +1,7 @@
 import { buildHash, type Route } from './router'
 
 /** Domaine public : un lien partagé depuis le site doit rester absolu. */
-export const SITE_ORIGIN = 'https://bondev.ngassakindzaa.workers.dev'
+const SITE_ORIGIN = 'https://bondev.ngassakindzaa.workers.dev'
 
 export type ShareOutcome = 'shared' | 'copied' | 'cancelled' | 'failed'
 
@@ -21,7 +21,7 @@ type ShareNavigator = Navigator & {
 }
 
 /** Copie de secours, y compris sur les navigateurs sans Clipboard API. */
-export async function copyText(text: string): Promise<boolean> {
+async function copyText(text: string): Promise<boolean> {
   if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text)

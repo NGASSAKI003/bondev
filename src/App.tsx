@@ -510,7 +510,6 @@ function WeekCard({
   onHow: () => void
 }) {
   const lang = useLang()
-  const streak = progress?.streak
   return (
     <section className="glass week-card" aria-labelledby="week-title">
       <div className="week-head">
@@ -687,6 +686,11 @@ function HighlightedText({
   )
 }
 
+/** Vrai quand la liste de suggestions sera réellement rendue. */
+function hasSearchSuggestions(query: string): boolean {
+  return findConcepts(query).length > 0
+}
+
 function SearchSuggestions({
   query,
   onPick,
@@ -812,7 +816,7 @@ function RecentSearches({
           className="recent-menu-trigger"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          aria-controls="recent-searches-menu"
+          aria-controls={menuOpen ? 'recent-searches-menu' : undefined}
           aria-label={
             lang === 'en'
               ? 'Recent search options'
@@ -1114,7 +1118,7 @@ function Login() {
   }
 
   return (
-    <main className="login">
+    <main className="login" id="contenu" tabIndex={-1}>
       <div className="login-theme">
         <LangToggle />
         <ThemeToggle />
@@ -1305,6 +1309,7 @@ function Home({
   const greetingAvatar = profile?.avatar_url.startsWith('https://')
     ? profile.avatar_url
     : ''
+  const showSuggestions = hasSearchSuggestions(draft)
   const recent = projects?.slice(0, 3) ?? []
   const examples =
     lang === 'en'
@@ -1368,7 +1373,9 @@ function Home({
                     ? 'Search the project catalogue'
                     : 'Rechercher dans le catalogue'
                 }
-                aria-controls="home-search-suggestions"
+                aria-controls={
+                  showSuggestions ? 'home-search-suggestions' : undefined
+                }
                 aria-keyshortcuts="Control+K"
                 autoComplete="off"
                 inputMode="search"
@@ -1793,6 +1800,7 @@ function Results({
         : `${count} projet${count === 1 ? '' : 's'} trouvé${count === 1 ? '' : 's'}`
 
   const understood = lang === 'en' ? outcome.understoodEn : outcome.understood
+  const showSuggestions = hasSearchSuggestions(draft)
 
   // Entrée valide la recherche : le clavier mobile se referme et la liste
   // revient dans le champ de vision, sans perdre la saisie.
@@ -1834,7 +1842,9 @@ function Results({
               ? 'Search the project catalogue'
               : 'Rechercher dans le catalogue'
           }
-          aria-controls="catalogue-search-suggestions"
+          aria-controls={
+            showSuggestions ? 'catalogue-search-suggestions' : undefined
+          }
           aria-keyshortcuts="Control+K"
           autoComplete="off"
           inputMode="search"
@@ -2447,7 +2457,10 @@ function Tutorial({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0)
   const cardRef = useRef<HTMLElement | null>(null)
   const doneRef = useRef(onDone)
-  doneRef.current = onDone
+
+  useEffect(() => {
+    doneRef.current = onDone
+  }, [onDone])
 
   useEffect(() => {
     const card = cardRef.current
@@ -2734,7 +2747,7 @@ function LoadingScreen() {
   )
 }
 export default function App() {
-  const { session, loading, profileError } = useAuthSession()
+  const { session, loading, profile, profileError } = useAuthSession()
   const lang = useLang()
   const [screen, setScreen] = useState<Screen>('login')
   const [sheet, setSheet] = useState(false)
@@ -2797,6 +2810,7 @@ export default function App() {
   }, [])
 
   const userId = session?.user.id
+  const profileId = profile?.id ?? null
 
   const pendingScroll = useRef<number | null>(null)
   const pendingFocus = useRef(false)
@@ -2812,7 +2826,10 @@ export default function App() {
           ? 'home'
           : screen
         : 'login'
-  currentScreenRef.current = currentScreen
+
+  useEffect(() => {
+    currentScreenRef.current = currentScreen
+  }, [currentScreen])
 
   const saveHistoryScroll = useCallback(() => {
     const state = history.state as { index?: number; scrollY?: number } | null
@@ -3088,7 +3105,9 @@ export default function App() {
             '',
             buildHash(route),
           )
-        } catch {}
+        } catch {
+          /* L'historique peut être verrouillé : la navigation reste utilisable. */
+        }
       }
       applyRoute(route)
       setNavTick((value) => value + 1)
@@ -3108,7 +3127,9 @@ export default function App() {
           '',
           buildHash(route),
         )
-      } catch {}
+      } catch {
+        /* L'historique peut être verrouillé : la navigation reste utilisable. */
+      }
       setNavTick((value) => value + 1)
     }
   }, [applyRoute, loading, userId])
@@ -3228,7 +3249,9 @@ export default function App() {
   }, [screen, lang])
 
   const loadProgress = useCallback(async () => {
-    if (!userId) return
+    // Le profil est créé juste après la connexion. Attendre sa présence évite
+    // d'afficher une erreur de progression sur un compte tout neuf.
+    if (!userId || !profileId) return
     const request = progressRequest.current + 1
     progressRequest.current = request
     setProgressLoading(true)
@@ -3244,7 +3267,7 @@ export default function App() {
     } finally {
       if (request === progressRequest.current) setProgressLoading(false)
     }
-  }, [userId])
+  }, [userId, profileId])
 
   useEffect(() => {
     progressRequest.current += 1
@@ -3256,9 +3279,10 @@ export default function App() {
       setProgressLoading(false)
       return
     }
+    // Tant que le profil n'existe pas, l'écran de chargement reste affiché.
     setProgressLoading(true)
-    void loadProgress()
-  }, [userId, loadProgress])
+    if (profileId) void loadProgress()
+  }, [userId, profileId, loadProgress])
 
   useEffect(() => {
     if (!userId) return
@@ -3509,7 +3533,9 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('bondev-nav', pinned ? 'open' : 'closed')
-    } catch {}
+    } catch {
+      /* Le stockage local peut être refusé : le menu reste utilisable. */
+    }
   }, [pinned])
   const removeRecent = (value: string) => {
     setRecentSearches((current) => removeRecentSearch(value, current))
@@ -3775,14 +3801,16 @@ export default function App() {
             {sheet && (
               <div
                 className={`sheet-backdrop ${closing ? 'out' : ''}`}
-                onClick={() => closeSheet()}
+                role="presentation"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) closeSheet()
+                }}
               >
                 <section
                   className="add-sheet"
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="add-sheet-title"
-                  onClick={(e) => e.stopPropagation()}
                 >
                   <i />
                   <h2 id="add-sheet-title">Que veux-tu ajouter ?</h2>

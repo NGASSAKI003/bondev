@@ -82,7 +82,7 @@ const EN: Record<string, string> = {
 
   // Messages d'erreur traduits par l'API
   'Ta session a expiré. Reconnecte-toi.': 'Your session expired. Please sign in again.',
-  'Impossible de contacter le serveur. Vérifie ta connexion et réessaie.': 'Cannot reach the server. Check your connection and try again.',
+  'Le service est momentanément indisponible, réessaie dans un instant.': 'The service is temporarily unavailable, please try again in a moment.',
   'Trop de tentatives. Patiente un moment avant de réessayer.': 'Too many attempts. Wait a moment before trying again.',
   'Cette information est déjà utilisée.': 'This information is already in use.',
   'Tu n’as pas le droit de faire cette action.': 'You are not allowed to do this action.',
@@ -256,6 +256,8 @@ const EN: Record<string, string> = {
   'Chargement de l’écran': 'Loading screen',
   "Oups, quelque chose s'est mal passé": 'Oops, something went wrong',
   'Recharger': 'Reload',
+  'Nouvelle version disponible': 'New version available',
+  'Actualiser': 'Refresh',
   'Recharge l’application pour continuer.': 'Reload the app to continue.',
 }
 
@@ -307,7 +309,7 @@ export function startTranslator() {
   obs = new MutationObserver(scheduleApply)
   apply()
 }
-export function setLang(l: Lang) {
+function setLang(l: Lang) {
   lang = l
   try { localStorage.setItem(KEY, l) } catch { /* ignore */ }
   document.documentElement.lang = l
